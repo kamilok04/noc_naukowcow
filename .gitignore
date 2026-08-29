@@ -1,0 +1,10 @@
+.vscode/**
+out/**
+build/**
+sysroot/**
+*.iso
+
+# TODO: 
+# an artifact pipeline for creating a flat binary x86_64 UEFI executable
+# not a single one of those words are in the Bible btw
+assets/**

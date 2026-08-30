@@ -80,8 +80,6 @@ draw_bitmap:
     movzx r13, dword [r8 + 0x16]
     movzx rbx, dword [r8 + 0x0a]
 
-    LOG "Width: %d", r12
-    LOG "Height: %d", r13
     
     add r8, rbx  
 
@@ -129,5 +127,27 @@ draw_bitmap:
     pop r14
     pop r13
     pop r12
+    pop rbp
+    ret
+
+; Draw a 10x10 red square.
+; Intended to show where the mouse pointer currently is
+; but can be used anywhere
+draw_cursor:
+    push rbp
+    mov rbp, rsp
+    
+    mov rdi, [rel backbuffer_ptr]
+    mov rsi, [rel framebuffer_pitch]
+    
+    mov ecx, dword [rel mouse_x]   ; RCX = Start X
+    mov edx, dword [rel mouse_y]   ; RDX = Start Y
+    
+    mov r8, 10                     ; Width
+    mov r9, 10                     ; Height
+    mov r10d, 0x00FF0000           ; 32-bit Color (ARGB format: Red)
+    
+    call draw_rectangle
+    
     pop rbp
     ret

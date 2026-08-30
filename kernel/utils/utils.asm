@@ -74,8 +74,50 @@ print_dec:
     ret
 
 ; ------------------------------------------------------------------------------
+; print_hex
+; Prints a 64-bit integer in RAX as a 16-character hexadecimal string.
+; ------------------------------------------------------------------------------
+print_hex:
+    push rax
+    push rcx
+    push rdx
+
+    push rax
+    mov al, '0'
+    call putc
+    mov al, 'x'
+    call putc
+    pop rax
+
+    mov rcx, 16         
+.hex_loop:
+    rol rax, 4        
+    mov dl, al          
+    and dl, 0x0F       
+
+    ; convert the 4 bits to ASCII
+    cmp dl, 9
+    jbe .is_digit
+    add dl, 'A' - 10    ; Convert 10-15 to 'A'-'F'
+    jmp .print_nibble
+.is_digit:
+    add dl, '0'         ; Convert 0-9 to '0'-'9'
+
+.print_nibble:
+    push rax
+    mov al, dl         
+    call putc
+    pop rax
+
+    loop .hex_loop      
+
+    pop rdx
+    pop rcx
+    pop rax
+    ret
+; ------------------------------------------------------------------------------
 ; printf
-; Minimal implementation of printf. For now, only %s and %d params are supported.
+; Minimal implementation of printf. For now, only %s and %d and %x params are supported.
 ; Inputs:
 ;   RCX - Pointer to format string
 ;   RDX - arg1
@@ -126,6 +168,9 @@ printf:
     
     cmp al, 'd'
     je .print_int
+
+    cmp al, 'x'          
+    je .print_hex_arg
     
     ; unknown specifier: print both the '%' and the character
     ; this differs from the spec a bit, in there, a '%%' outputs a single '%'.
@@ -154,6 +199,12 @@ printf:
     mov rax, [r12]       
     add r12, 8           ; int = 8 bytes
     call print_dec
+    jmp .parse_loop
+
+.print_hex_arg:
+    mov rax, [r12]      
+    add r12, 8           
+    call print_hex       
     jmp .parse_loop
 
 .done:

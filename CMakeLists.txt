@@ -55,7 +55,8 @@ add_custom_target(boot
 COMMAND ${CMAKE_ASM_NASM_COMPILER}
 "${ARCH_AGNOSTIC_ROOT}/efi.asm" 
 "-i${ARCH_AGNOSTIC_ROOT}/inc"
-"-i${ARCH_AGNOSTIC_ROOT}/io"
+"-i${ARCH_AGNOSTIC_ROOT}/io/files"
+"-i${ARCH_AGNOSTIC_ROOT}/io/mouse"
 "-i${ARCH_AGNOSTIC_ROOT}/headers"
 "-i${ARCH_AGNOSTIC_ROOT}/graphics"
 "-i${ARCH_AGNOSTIC_ROOT}/utils"
@@ -131,6 +132,11 @@ COMMAND "qemu-system-x86_64"
 "-cpu" "qemu64"
 "-bios" "${BIOS_PATH}" 
 "-cdrom" "${CMAKE_SYSROOT}/../chessos.iso"
+"-usb" "-device" "usb-mouse" # UEFI uses delta-based mouse movement
+                             # much like real-life mice do
+"-display" "gtk,show-tabs=on"
+"-chardev" "stdio,id=char0,logfile=serial.log,signal=off"
+"-serial" "chardev:char0"
 "$<$<CONFIG:DEBUG>:-s>" # otwórz port 1234 dla debuggera
 "$<$<CONFIG:DEBUG>:-S>" # czekaj na zezwolenie od debuggera, zanim zaczniesz działać
 # "$<$<CONFIG:DEBUG>:-serial>" "$<$<CONFIG:DEBUG>:stdio>"

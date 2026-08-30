@@ -72,14 +72,52 @@ efi_main:
     
     LOG "The GOP protocol located succesfully."
     
+    call set_max_resolution
+
     ; ask the framebuffer what it knows
-    mov rbx, [rel gop_ptr]   ; RBX = *GOP
+    mov rbx, [rel gop_ptr]   
     mov rbx, [rbx + 24]      ; RBX = GOP->Mode
-    mov rdi, [rbx + 24]      ; RDI = RBX
+    
+    mov rdi, [rbx + 24]      ; RDI = FrameBufferBase
+    mov [rel framebuffer_base], rdi
+
     mov rcx, [rbx + 8]       ; RCX = Mode->Info
+
+    mov eax, dword [rcx + 4] ; HorizontalResolution
+    mov dword [rel screen_w], eax
+    
+    mov eax, dword [rcx + 8] ; VerticalResolution
+    mov dword [rel screen_h], eax
     mov esi, dword [rcx + 32]; RSI = PixelsPerScanLine (Pitch)
+    mov [rel framebuffer_pitch], rsi
     
     
+    LOG "Screen dimensions are %dx%d", rax, rsi
+
+    mov eax, dword [rel framebuffer_pitch]
+    mov ecx, dword [rel screen_h]
+    mul rcx                            ; RAX = Pitch * Height
+    shl rax, 2                         ; RAX * 4 (Bytes per pixel)
+    mov [rel backbuffer_size], rax
+    
+    add rax, 4095
+    shr rax, 12                        ; RAX = count of 4KB pages to allocate
+
+    mov rcx, 0                         ; AllocateAnyPages
+    mov rdx, 2                         ; EfiLoaderData
+    mov r8, rax                        ; page count
+    lea r9, [rel backbuffer_ptr]       
+    
+    mov rbx, [rel boot_services_ptr]
+    sub rsp, 32
+    call [rbx + 40]                    ; EFI_BOOT_SERVICES.AllocatePages
+    add rsp, 32
+    
+    test rax, rax
+    jnz .error_allocation              ; Handle failure if out of memory
+    
+    LOG "Double buffer allocated at: %x", [rel backbuffer_ptr]
+
     mov rcx, 250
     mov rdx, 200
     mov r8, [rel test_file_handle]
@@ -92,11 +130,51 @@ efi_main:
     ; Close the file when done to prevent memory leaks
     lea rcx, [rel test_file_handle]
     call fclose
-    
-    lea rsi, [rel msg_done]
-    call puts
-    jmp .hang
 
+
+    LOG "Entering interactive mode."
+    call init_mouse
+
+    mov rcx, [rel mouse_ptr]
+    mov rax, [rcx + EFI_SIMPLE_POINTER_PROTOCOL.WaitForInput]
+    mov [rel mouse_event_array], rax
+
+
+    jmp .main_loop
+
+.main_loop:
+    ; pause the CPU until something happens
+    mov rcx, 1                           ; number of events
+    lea rdx, [rel mouse_event_array]     ; ptr to array of event handlea
+    lea r8, [rel event_index]            ; ptr to which event woke the cpu up
+    mov rbx, [rel boot_services_ptr]
+    call [rbx + 256]                     ; goodnight
+
+    ; get the state
+    call update_mouse
+
+    ; LOG "Mouse X: %d, Y: %d", [rel mouse_x], [rel mouse_y]
+
+    mov rdi, [rel backbuffer_ptr]        
+    mov rsi, [rel framebuffer_pitch]
+    mov rcx, 100                        
+    mov rdx, 100                         
+    mov r8, [rel test_file_handle]
+    mov r8, [r8 + FILE.BufferPtr] 
+    call draw_bitmap
+    call draw_cursor
+    call swap_buffers
+
+    jmp .main_loop
+    
+    ; new coords, log them
+
+    jmp .main_loop
+
+.error_allocation:
+    LOG "Failed to allocate memory."
+    jmp .hang
+    
 .file_error:
     LOG "Unable to read the requested file: %s", rcx
     jmp .hang
@@ -116,11 +194,13 @@ efi_main:
     LOG "Failed to load the GOP protocol."
     jmp .hang
 
-; Include our subroutines directly into the .text section
+; include subroutines directly into the .text section
 ; %include "uefi_headers.asm"
 %include "utils.asm"
 %include "drawing_utils.asm"
 %include "fileio.asm"
+%include "mouse.asm"
+%include "gop_utils.asm"
 ; Pad .text to exactly 4096 bytes
 align 4096, db 0
 text_raw_size equ $ - text_raw_ptr
@@ -158,13 +238,39 @@ data_rva equ text_rva + text_vsize
     file_size      dq 0
     file_read_size dq 0
 
-    ; GOP ptr
+    ; GOP ptrs
     gop_ptr dq 0
+    framebuffer_base  dq 0
+    framebuffer_pitch dq 0
+    screen_w dd 0
+    screen_h dd 0
+    target_mode dd 0
+    max_pixels  dq 0
+    info_size   dq 0
+    info_ptr    dq 0
 
+    ; mouse ptrs
+    mouse_ptr dq 0
+    mouse_x   dd 400    ; Starting X coordinate
+    mouse_y   dd 300    ; Starting Y coordinate
+    mouse_event_array dq 0
+    event_index       dq 0
+    
+    ; mouse state
+    mouse_state times 16 db 0 
 
+    ; double buffering 
+    backbuffer_ptr  dq 0
+    backbuffer_size dq 0
 
+    
     ; GUIDs
-
+    
+    ; {31878C87-0B75-11D5-9A4F-0090273FC14D}
+    GUID_SIMPLE_POINTER:
+        dd 0x31878c87
+        dw 0x0b75, 0x11d5
+        db 0x9a, 0x4f, 0x00, 0x90, 0x27, 0x3f, 0xc1, 0x4d
     ; {9042A9DE-23DC-4A38-96FB-7ADED080516A}
     GUID_GOP:
         dd 0x9042a9de

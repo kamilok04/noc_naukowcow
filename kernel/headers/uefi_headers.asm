@@ -95,3 +95,20 @@ struc EFI_BOOT_SERVICES
     .SetMem                              resq 1  ; Offset 360
     .CreateEventEx                       resq 1  ; Offset 368
 endstruc
+
+struc EFI_SIMPLE_POINTER_PROTOCOL
+    .Reset        resq 1 ; +0
+    .GetState     resq 1 ; +8
+    .WaitForInput resq 1 ; +16
+    .Mode         resq 1 ; +24
+endstruc
+
+struc EFI_SIMPLE_POINTER_STATE
+    .RelativeMovementX resd 1 ; +0  (INT32)
+    .RelativeMovementY resd 1 ; +4  (INT32)
+    .RelativeMovementZ resd 1 ; +8  (INT32)
+    .LeftButton        resb 1 ; +12 (BOOLEAN)
+    .RightButton       resb 1 ; +13 (BOOLEAN)
+    ; 14 bytes, but pad for alignment
+    ._Padding           resb 2
+endstruc

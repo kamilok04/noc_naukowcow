@@ -151,3 +151,78 @@ draw_cursor:
     
     pop rbp
     ret
+
+
+; ------------------------------------------------------------------------------
+; save_cursor_background
+; Copies a block from the backbuffer to cursor_bg_buffer
+; Inputs: RCX = newX, RDX = newY
+; ------------------------------------------------------------------------------
+save_cursor_background:
+    push rbp
+    mov rbp, rsp
+
+    ; Calculate backbuffer offset: (Y * Pitch + X) * 4
+    mov rax, rdx
+    mul qword [rel framebuffer_pitch]    
+    add rax, rcx                         
+    shl rax, 2                           
+    mov rsi, [rel backbuffer_ptr]
+    add rsi, rax                         ; source = backed buffer
+
+    lea rdi, [rel cursor_bg_buffer]      ; destination = new temp buffer
+    mov r8, cursor_size                  
+
+.save_row:
+    mov rcx, cursor_size                 
+    rep movsd                            
+    
+    ; Jump to the next row in the backbuffer
+    mov rax, [rel framebuffer_pitch]
+    shl rax, 2
+    sub rax, (cursor_size * 4)           ; subtract whatever was read
+    add rsi, rax                         
+    
+    dec r8
+    jnz .save_row
+
+    pop rbp
+    ret
+
+; ------------------------------------------------------------------------------
+; restore_cursor_background
+; Restores a block from cursor_bg_buffer back to the backbuffer
+; ------------------------------------------------------------------------------
+restore_cursor_background:
+    push rbp
+    mov rbp, rsp
+
+    cmp byte [rel cursor_is_saved], 0
+    jz .done                             ; Skip if nothing is saved
+
+    ; Calculate backbuffer offset: (saved_Y * pitch + savedX) * 4
+    mov rax, [rel saved_cursor_y]
+    mul qword [rel framebuffer_pitch]    
+    add rax, [rel saved_cursor_x]                         
+    shl rax, 2 
+    mov rdi, [rel backbuffer_ptr]
+    add rdi, rax                         ; draw to backed buffer
+
+    lea rsi, [rel cursor_bg_buffer]      ; from our buffer
+    mov r8, cursor_size                  
+
+.restore_row:
+    mov rcx, cursor_size
+    rep movsd
+    
+    mov rax, [rel framebuffer_pitch]
+    shl rax, 2
+    sub rax, (cursor_size * 4)
+    add rdi, rax
+    
+    dec r8
+    jnz .restore_row
+
+.done:
+    pop rbp
+    ret

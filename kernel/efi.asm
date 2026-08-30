@@ -72,7 +72,7 @@ efi_main:
     
     LOG "The GOP protocol located succesfully."
     
-    call set_max_resolution
+    ; call set_max_resolution
 
     ; ask the framebuffer what it knows
     mov rbx, [rel gop_ptr]   
@@ -118,6 +118,9 @@ efi_main:
     
     LOG "Double buffer allocated at: %x", [rel backbuffer_ptr]
 
+    
+    mov rdi, [rel backbuffer_ptr]
+    mov rsi, [rel framebuffer_pitch]
     mov rcx, 250
     mov rdx, 200
     mov r8, [rel test_file_handle]
@@ -130,23 +133,16 @@ efi_main:
     ; Close the file when done to prevent memory leaks
     ; lea rcx, [rel test_file_handle]
     ; call fclose
-
-
+    
+    call swap_buffers
+    
     LOG "Entering interactive mode."
     call init_mouse
 
     mov rcx, [rel mouse_ptr]
-    mov rdi, [rcx + 24]
-    ; Log the X and Y hardware resolutions
-    mov eax, dword [rdi + 0]     ; Mode->ResolutionX
-    mov edx, dword [rdi + 8]     ; Mode->ResolutionY
-    LOG "Hardware Mouse X Resolution: %d", rax
-    LOG "Hardware Mouse Y Resolution: %d", rdx
-
-    mov rax, [rcx + EFI_SIMPLE_POINTER_PROTOCOL.WaitForInput]
+    mov rax, [rcx + 16]                           ;
     mov [rel mouse_event_array], rax
-
-
+    
     jmp .main_loop
 
 .main_loop:
@@ -169,35 +165,55 @@ efi_main:
 
 .drain_queue:
     xor r15, r15                         
+    mov r14, 16                          ; ≤ 16 packets per frame please
 
 .read_loop:
     call update_mouse
     test rax, rax
     jnz .check_draw                      
-    mov r15, 1                          
-    jmp .read_loop                
+    
+    mov r15, 1                           
+    
+    dec r14                              
+    jz .flush_queue                      
+    jmp .read_loop                       
+
+.flush_queue:
+    mov rcx, [rel mouse_ptr]
+    xor rdx, rdx                         ; ExtendedVerification = FALSE
+    mov rax, [rcx + 0]                   ; Offset 0 = Protocol->Reset
+    sub rsp, 32
+    call rax
+    add rsp, 32            
 
 .check_draw:
     test r15, r15
     jz .main_loop                        ;
 
-    ; ; we have new coords, log them
-    ; movzx r8, dword [rel mouse_x]
-    ; movzx r9, dword [rel mouse_y]
-    ; LOG "Mouse X: %d, Y: %d", r8, r9
 
-    ; draw bg
-    mov rdi, [rel backbuffer_ptr]        
-    mov rsi, [rel framebuffer_pitch]
-    mov rcx, 200                        
-    mov rdx, 200                         
-    mov r8, [rel test_file_handle]
-    mov r8, [r8 + FILE.BufferPtr] 
-    call draw_bitmap
+    ; copy background from below cursor
+    call restore_cursor_background
     
-    ; draw cursor and swap buffers
-    call draw_cursor
-    call swap_buffers
+    ; embed the new cursor into the back
+    mov rcx, [rel saved_cursor_x]
+    mov rdx, [rel saved_cursor_y]
+    call push_cursor_region
+
+    ; save the background below the cursor
+    movzx rcx, dword [rel mouse_x]
+    movzx rdx, dword [rel mouse_y]
+    mov [rel saved_cursor_x], rcx
+    mov [rel saved_cursor_y], rdx
+    call save_cursor_background
+    mov byte [rel cursor_is_saved], 1
+
+    ; draw the cursor onto the backbuffer
+    call draw_cursor 
+
+    ; draw the new cursor to the physical screen
+    movzx rcx, dword [rel mouse_x]
+    movzx rdx, dword [rel mouse_y]
+    call push_cursor_region
 
     jmp .main_loop
 
@@ -296,6 +312,13 @@ data_rva equ text_rva + text_vsize
     ; double buffering 
     backbuffer_ptr  dq 0
     backbuffer_size dq 0
+
+    ; cursor buffer
+    cursor_bg_buffer times 1024 db 0 
+    saved_cursor_x   dq 0
+    saved_cursor_y   dq 0
+    cursor_is_saved  db 0           ; Flag: 0 = No, 1 = Yes
+    cursor_size      equ 10         ; 32x32 area
 
     
     ; GUIDs

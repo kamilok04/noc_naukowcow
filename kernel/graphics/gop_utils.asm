@@ -99,3 +99,44 @@ swap_buffers:
     pop rsi
     pop rbp
     ret
+
+
+
+; ------------------------------------------------------------------------------
+; push_cursor_region
+; Copies the cursor region from backbuffer to backup buffer
+; Inputs: RCX = X, RDX = Y
+; ------------------------------------------------------------------------------
+push_cursor_region:
+    push rbp
+    mov rbp, rsp
+
+    ; offset = (Y * pitch + X) * 4)
+    mov rax, rdx
+    mul qword [rel framebuffer_pitch]
+    add rax, rcx
+    shl rax, 2
+    
+    
+    mov rsi, [rel backbuffer_ptr]
+    add rsi, rax                         ; from backbuffer
+    
+    mov rdi, [rel framebuffer_base]
+    add rdi, rax                         ; to screen
+
+    mov r8, cursor_size                  
+.push_row:
+    mov rcx, cursor_size
+    rep movsd
+    
+    mov rax, [rel framebuffer_pitch]
+    shl rax, 2
+    sub rax, (cursor_size * 4)
+    add rsi, rax
+    add rdi, rax
+    
+    dec r8
+    jnz .push_row
+
+    pop rbp
+    ret

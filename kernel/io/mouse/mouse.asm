@@ -77,6 +77,10 @@ update_mouse:
     lea rbx, [rel mouse_state]
     mov eax, dword [rbx + EFI_SIMPLE_POINTER_STATE.RelativeMovementX]
     mov edx, dword [rbx + EFI_SIMPLE_POINTER_STATE.RelativeMovementY]
+    
+    ; sensitivity 
+    imul eax, 2
+    imul edx, 2
 
     mov ecx, dword [rel mouse_x]
     add ecx, eax               ; Apply delta
@@ -116,6 +120,8 @@ update_mouse:
 
 .save_y:
     mov dword [rel mouse_y], ecx
+    xor rax, rax
+    jmp .done
 
 .no_mouse:
     ;  LOG "No mouse has been detected!"

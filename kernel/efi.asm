@@ -128,14 +128,21 @@ efi_main:
     call draw_bitmap
     
     ; Close the file when done to prevent memory leaks
-    lea rcx, [rel test_file_handle]
-    call fclose
+    ; lea rcx, [rel test_file_handle]
+    ; call fclose
 
 
     LOG "Entering interactive mode."
     call init_mouse
 
     mov rcx, [rel mouse_ptr]
+    mov rdi, [rcx + 24]
+    ; Log the X and Y hardware resolutions
+    mov eax, dword [rdi + 0]     ; Mode->ResolutionX
+    mov edx, dword [rdi + 8]     ; Mode->ResolutionY
+    LOG "Hardware Mouse X Resolution: %d", rax
+    LOG "Hardware Mouse Y Resolution: %d", rdx
+
     mov rax, [rcx + EFI_SIMPLE_POINTER_PROTOCOL.WaitForInput]
     mov [rel mouse_event_array], rax
 
@@ -143,31 +150,54 @@ efi_main:
     jmp .main_loop
 
 .main_loop:
-    ; pause the CPU until something happens
-    mov rcx, 1                           ; number of events
-    lea rdx, [rel mouse_event_array]     ; ptr to array of event handlea
-    lea r8, [rel event_index]            ; ptr to which event woke the cpu up
+
+    mov rcx, 1                           
+    lea rdx, [rel mouse_event_array]     
+    lea r8, [rel event_index]            
     mov rbx, [rel boot_services_ptr]
-    call [rbx + 256]                     ; goodnight
 
-    ; get the state
+    sub rsp, 32
+    call [rbx + EFI_BOOT_SERVICES.WaitForEvent]                     
+    add rsp, 32
+    
+    ; Trap wake-up errors
+    test rax, rax
+    jz .drain_queue 
+    LOG "FATAL: WaitForEvent Error: %x", rax
+    cli
+    hlt
+
+.drain_queue:
+    xor r15, r15                         
+
+.read_loop:
     call update_mouse
+    test rax, rax
+    jnz .check_draw                      
+    mov r15, 1                          
+    jmp .read_loop                
 
-    ; LOG "Mouse X: %d, Y: %d", [rel mouse_x], [rel mouse_y]
+.check_draw:
+    test r15, r15
+    jz .main_loop                        ;
 
+    ; ; we have new coords, log them
+    ; movzx r8, dword [rel mouse_x]
+    ; movzx r9, dword [rel mouse_y]
+    ; LOG "Mouse X: %d, Y: %d", r8, r9
+
+    ; draw bg
     mov rdi, [rel backbuffer_ptr]        
     mov rsi, [rel framebuffer_pitch]
-    mov rcx, 100                        
-    mov rdx, 100                         
+    mov rcx, 200                        
+    mov rdx, 200                         
     mov r8, [rel test_file_handle]
     mov r8, [r8 + FILE.BufferPtr] 
     call draw_bitmap
+    
+    ; draw cursor and swap buffers
     call draw_cursor
     call swap_buffers
-
-    jmp .main_loop
-    
-    ; new coords, log them
 
     jmp .main_loop
 
@@ -255,9 +285,13 @@ data_rva equ text_rva + text_vsize
     mouse_y   dd 300    ; Starting Y coordinate
     mouse_event_array dq 0
     event_index       dq 0
-    
+
+    ; handle detection
+    handle_count  dq 0
+    handle_buffer dq 0
+
     ; mouse state
-    mouse_state times 16 db 0 
+    mouse_state times 32 db 0 
 
     ; double buffering 
     backbuffer_ptr  dq 0
@@ -265,7 +299,11 @@ data_rva equ text_rva + text_vsize
 
     
     ; GUIDs
-    
+    ; {8D59D32B-C655-4AE9-9B15-F25904992A43}
+    GUID_ABSOLUTE_POINTER:
+        dd 0x8d59d32b
+        dw 0xc655, 0x4ae9
+        db 0x9b, 0x15, 0xf2, 0x59, 0x04, 0x99, 0x2a, 0x43
     ; {31878C87-0B75-11D5-9A4F-0090273FC14D}
     GUID_SIMPLE_POINTER:
         dd 0x31878c87

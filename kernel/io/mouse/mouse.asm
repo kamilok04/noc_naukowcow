@@ -6,27 +6,49 @@ init_mouse:
     push rbp
     mov rbp, rsp
     push rbx
-    sub rsp, 32
-
+    
+    ; 8 bytes for the 5th argument and align to 64 bytes
+    sub rsp, 56
     mov rbx, [rel boot_services_ptr]
+    
+    ; get all mouse handles
+    mov rcx, 2                           ; search by protocol
+    lea rdx, [rel GUID_SIMPLE_POINTER]   
+    xor r8, r8                           
+    lea r9, [rel handle_count]           
+  
+    
+    lea rax, [rel handle_buffer]
+    mov [rsp + 32], rax                  
+    
+    call [rbx + EFI_BOOT_SERVICES.LocateHandleBuffer]                     ; 
+    test rax, rax
+    jnz .error
+    LOG "%d mouse protocols located.", [rel handle_count]
 
-    ; 1. Locate Protocol
-    lea rcx, [rel GUID_SIMPLE_POINTER]
-    xor rdx, rdx
+    ; get the last mouse ptr handle because VMs do stupid stuff sometimes
+    mov rax, [rel handle_count]
+    dec rax                              ; [-1]
+    mov rdx, [rel handle_buffer]
+    mov rcx, [rdx + rax * 8]             ; RCX = target hw handle
+    
+    lea rdx, [rel GUID_SIMPLE_POINTER]
     lea r8, [rel mouse_ptr]
-    call [rbx + EFI_BOOT_SERVICES.LocateProtocol]
+    call [rbx + EFI_BOOT_SERVICES.HandleProtocol]     
     
     test rax, rax
     jnz .error
-
-    ; 2. Reset Mouse
+    
     mov rcx, [rel mouse_ptr]
-    xor rdx, rdx                 ; ExtendedVerification = FALSE (0)
-    mov rax, [rcx + EFI_SIMPLE_POINTER_PROTOCOL.Reset]
+    mov rdx, 1                           ; ExtendedVerification = TRUE
+    mov rax, [rcx]
     call rax
+    jmp .done
 
 .error:
-    add rsp, 32
+    LOG "Mouse Hardware Bind Failed! Code: %x", rax
+.done:
+    add rsp, 56
     pop rbx
     pop rbp
     ret
@@ -96,7 +118,7 @@ update_mouse:
     mov dword [rel mouse_y], ecx
 
 .no_mouse:
-    LOG "No mouse has been detected!"
+    ;  LOG "No mouse has been detected!"
 .done:
     add rsp, 32
     pop rbp

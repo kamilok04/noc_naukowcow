@@ -28,6 +28,23 @@ efi_main:
     mov rbx, [r12 + 96]      ; RBX = SystemTable->BootServices
     mov [rel boot_services_ptr], rbx
 
+    ; kill the watchdog
+    ; UEFI Spec
+    ; 3.1.2: there is a 5-minute timer present
+    ;        if it expires, reboot
+    ; 7.5.1: a boot image may disable the watchdog
+    ;        if it wants to
+    
+    xor rcx, rcx                  ; no timeout
+    xor rdx, rdx                  ; no error
+    xor r8, r8                    ; nothing
+    xor r9, r9                    ; die already
+    
+    mov rbx, [rel boot_services_ptr] 
+    sub rsp, 32                      ; Allocate shadow space
+    call [rbx + EFI_BOOT_SERVICES.SetWatchdogTimer]
+    add rsp, 32                      ; Clean up shadow space
+
     ; load the root directory
     call init_block_io
     

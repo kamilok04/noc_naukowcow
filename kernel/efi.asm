@@ -43,11 +43,15 @@ efi_main:
 
     mov rdi, [rel sector_buffer]
     mov r8d, dword [rdi + ISO9660_PVD.RootDirectoryRecord + ISO9660_DIR_RECORD.ExtentLocationLE]
+    mov [rel root_dir_lba], r8
+
+    mov r9d, dword [rdi + ISO9660_PVD.RootDirectoryRecord + ISO9660_DIR_RECORD.DataLengthLE]
+    mov [rel root_dir_size], r9
     
     mov r9, 2048
     mov r10, [rel sector_buffer]
     call read_sectors
-    
+
     ; try to read a file
     lea rcx, [rel target_file]
     LOG "Attempting to read %s", rcx
@@ -127,21 +131,29 @@ efi_main:
     mov r8, [r8 + FILE.BufferPtr]
     cmp word [r8], 0x4D42
     jne .file_error          ; If it's not "BM", the disk read failed!
-    
+
     call draw_bitmap
     
     ; Close the file when done to prevent memory leaks
     ; lea rcx, [rel test_file_handle]
     ; call fclose
-    
     call swap_buffers
-    
+
+    LOG "Loading assets..."
+    call init_assets
+
     LOG "Entering interactive mode."
     call init_mouse
-
+    
     mov rcx, [rel mouse_ptr]
     mov rax, [rcx + 16]                           ;
     mov [rel mouse_event_array], rax
+    
+    LOG "Initializing the game."
+    call draw_chessboard
+    
+    call swap_buffers
+    
     
     jmp .main_loop
 
@@ -247,8 +259,11 @@ efi_main:
 %include "fileio.asm"
 %include "mouse.asm"
 %include "gop_utils.asm"
-; Pad .text to exactly 4096 bytes
-align 4096, db 0
+%include "draw_chessboard.asm"
+%include "init_assets.asm"
+
+; Pad .text to 8KB
+align 8192, db 0
 text_raw_size equ $ - text_raw_ptr
 text_vsize equ text_raw_size
 text_size equ text_vsize
@@ -264,7 +279,7 @@ data_rva equ text_rva + text_vsize
     msg_gop_ok db "Graphics Output Protocol located.", 13, 10, 0
     msg_iso_reading_file db "Attempting a file read...", 13, 10, 0
     msg_iso_read_failed db "Reading failure!", 13, 10, 0
-    test_file db "TEST.TXT;1", 0
+    test_file db "ASSETS/FOLDER/TEST.TXT;1", 0
     target_file db "OK.BMP;1", 0
     msg_done   db "The bootloader is done.", 13, 10, 0
 
@@ -279,10 +294,16 @@ data_rva equ text_rva + text_vsize
     block_io_ptr   dq 0
     pvd_buffer_ptr dq 0
     sector_buffer  dq 0
+    push rcx
+    push rdi
+    push rsi
     file_buffer    dq 0
     file_lba       dq 0
     file_size      dq 0
     file_read_size dq 0
+    path_token    times 64 db 0
+    root_dir_lba  dq 0
+    root_dir_size dq 0
 
     ; GOP ptrs
     gop_ptr dq 0
@@ -294,6 +315,7 @@ data_rva equ text_rva + text_vsize
     max_pixels  dq 0
     info_size   dq 0
     info_ptr    dq 0
+    COLOR_KEY      equ 0x00FF00FF    ; magenta
 
     ; mouse ptrs
     mouse_ptr dq 0
@@ -343,9 +365,12 @@ data_rva equ text_rva + text_vsize
         dw 0x6459, 0x11d2
         db 0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b
     
+    ; Chess!
+    %include "board_state.asm"
+    
 
-; Pad .data to exactly 4096 bytes
-align 4096, db 0
+; Pad .data to 8KB
+align 8192, db 0
 data_raw_size equ $ - data_raw_ptr
 data_vsize equ data_raw_size
 data_size equ data_vsize

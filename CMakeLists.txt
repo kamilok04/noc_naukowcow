@@ -60,6 +60,10 @@ COMMAND ${CMAKE_ASM_NASM_COMPILER}
 "-i${ARCH_AGNOSTIC_ROOT}/io/mouse"
 "-i${ARCH_AGNOSTIC_ROOT}/graphics"
 "-i${ARCH_AGNOSTIC_ROOT}/utils"
+"-i${ARCH_AGNOSTIC_ROOT}/chess"
+"-i${ARCH_AGNOSTIC_ROOT}/chess/logic"
+"-i${ARCH_AGNOSTIC_ROOT}/chess/graphics"
+
 "-fbin"
 "-o${CMAKE_SYSROOT}/EFI/BOOT/BOOTX64.EFI" 
 "$<$<CONFIG:DEBUG>:-L+listings/efi.lst>"
@@ -78,14 +82,13 @@ file(GLOB_RECURSE ASSET_FILES CONFIGURE_DEPENDS "${SOURCE_ASSETS_DIR}/*")
 # Copy on diff
 add_custom_command(
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/assets_copy.stamp"
+    COMMAND ${CMAKE_COMMAND} -E rm -rf "${CMAKE_SYSROOT}/ASSETS"
     COMMAND ${CMAKE_COMMAND} 
-        -E copy_directory "${SOURCE_ASSETS_DIR}" "${CMAKE_SYSROOT}"
+        -E copy_directory "${SOURCE_ASSETS_DIR}" "${CMAKE_SYSROOT}/ASSETS"
     COMMAND ${CMAKE_COMMAND} 
         -E touch "${CMAKE_CURRENT_BINARY_DIR}/assets_copy.stamp"
-
-    # Depend on all files
     DEPENDS ${ASSET_FILES}
-    COMMENT "Kopiowanie zasobów do sysroot..."
+    COMMENT "Synchronizowanie zasobów do sysroot/ASSETS..."
 )
 
 add_custom_target(compile_system ALL DEPENDS boot
@@ -116,7 +119,6 @@ COMMAND "mkisofs"
 "-V" "'ChessOS '" 
 #"-U" # nagnij specyfikację i rozszerz zestaw znaków nazw plików
 "-no-emul-boot" # nie ma emulacji dyskietki
-"-boot-load-size" "4" # wymagane przez -no-emul-boot
 "-b" "EFI/BOOT/BOOTX64.EFI" # plik rozruchowy
 "-o" "../chessos.iso" 
 "${CMAKE_SYSROOT}" 

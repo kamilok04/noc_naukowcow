@@ -111,7 +111,26 @@ draw_bitmap:
     mov rdi, rax                     ; RDI = destination (sreen)
     mov rsi, r8                      ; RSI = source (pixels)
     mov rcx, r12                     ; RCX = pixel count
-    rep movsd                        ; copy RCX dwords (32-bit pixels) from [RSI] to [RDI]
+.pixel_loop:
+    test rcx, rcx                    ; Check if the row is finished
+    jz .pixel_loop_done
+
+    mov eax, dword [rsi]             
+    
+    mov ebx, eax                     
+    and ebx, 0x00FFFFFF              
+    cmp ebx, COLOR_KEY          
+    je .skip_pixel                   
+    
+    mov dword [rdi], eax             
+
+.skip_pixel:
+    add rsi, 4                       ; Advance source pointer to the next BMP pixel
+    add rdi, 4                       ; Advance destination pointer to the next screen pixel
+    dec rcx
+    jmp .pixel_loop
+
+.pixel_loop_done:
 
     pop rsi
     pop rdi

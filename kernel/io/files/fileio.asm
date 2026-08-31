@@ -16,55 +16,122 @@ fopen:
     push rbx
     push r12
     push r13
+    push r14
+    push r15
+    mov r12, rcx                     
+    mov r13, [rel root_dir_lba]      
+    mov r14, [rel root_dir_size]     
 
-    mov rbx, [rel boot_services_ptr]
-
-    ; 1. Search for the file in the Root Directory
-    ; TODO: nested dirs, obviously
-    mov rdi, [rel sector_buffer]
-    mov rsi, rcx
-    mov rcx, 2048
-    call find_iso_file
-    test rax, rax
-    jz .not_found
-
-
-
-    mov r13, rax                  ; R13 = file LBA
-    mov r12, rdx                  ; R12 = filesize
-
-    mov rax, r12
-    call malloc
-    test rax, rax
-    jz .allocation_failed
-    mov [rel temp_buffer_ptr], rax
+.get_segment:
+    ; następny kawałek ścieżki dopóki nie wjedziesz w '/' albo 0
+    lea rdi, [rel path_token]
+    xor rbx, rbx                     ; RBX = długość kawałka
+.extract_char:
+    mov al, byte [r12]
+    cmp al, 0
+    je .token_done
+    cmp al, '/'
+    je .token_done
+    mov byte [rdi + rbx], al
+    inc r12
+    inc rbx
     
-    ; read the file into memory
-    mov r8, r13
-    mov r9, r12                   ; R9 = Exact File Size
-    add r9, 2047                  ; round up to the nearest
-    and r9, ~2047                 ; 2KB boundary
-    mov r10, [rel temp_buffer_ptr]
+    jmp .extract_char
+.token_done:
+    
+    mov byte [rdi + rbx], 0          ; Pobierz terminatora
+    mov r15b, al                     ; R15B = co zostało zapisane?
+    
+    cmp r15b, '/'
+    jne .do_search
+    inc r12                          ; Przewiń przez '/'
+
+.do_search:
+    ; Zaokrąglij rozmiar do 2KB
+    mov rdx, r14
+    add rdx, 2047
+    and rdx, ~0x7ff
+
+    ; Zrób jakiś bufor na wpis katalogowy
+    mov rcx, 2                       ; EfiLoaderData
+    lea r8, [rel file_buffer]        ; tmp
+    mov rbx, [rel boot_services_ptr]
+    sub rsp, 32
+    call [rbx + EFI_BOOT_SERVICES.AllocatePool]
+    add rsp, 32
+    
+    ; wczytaj wpis
+    mov r8, r13                      ; LBA
+    mov r9, r14                      ; Rozmiar
+    add r9, 2047
+    and r9, ~0x7ff
+    mov r10, [rel file_buffer]
     call read_sectors
-    test rax, rax                 ; Check if EFI_SUCCESS
-    jnz .not_found
 
-    ; allocate memory for the FILE struct (24 bytes)
+    test rax, rax
+    jnz .read_failure
+    
+    ; Poszukaj tu wpisu o żądanej nazwie
+    mov rdi, [rel file_buffer]
+    mov rcx, r14                     
+    lea rsi, [rel path_token]
+    LOG "Directory size is %x @ %x", rcx, rdi
+    LOG "Looking for token %s", rsi
+    call search_directory
+    
+    mov r13, rax                     ; nowe LBA
+    mov r14, rdx                     ; nowy rozmiar
+    
+    ; wpis już niepotrzebny, usuń
+    mov rcx, [rel file_buffer]
+    mov rbx, [rel boot_services_ptr]
+    sub rsp, 32
+    call [rbx + EFI_BOOT_SERVICES.FreePool]
+    add rsp, 32
+    
+    ; Udało się?
+    test r13, r13
+    jz .not_found                        ; jak 0, to nie
+    
+    ; '/', czyli jest jakiś folder pod spodem
+    cmp r15b, 0
+    jne .get_segment
+    
+    ; jest plik, utwórz strukturę FILE i ją oddaj
     mov rcx, 2
-    mov rdx, FILE_STRUCT_SIZE
-    lea r8, [rel temp_struct_ptr]
-
+    mov rdx, 16
+    lea r8, [rel file_buffer]        ; recykling :)
+    
+    
+    mov rbx, [rel boot_services_ptr]
     sub rsp, 32 ; shadow spacing                                 
     call [rbx + EFI_BOOT_SERVICES.AllocatePool]
     add rsp, 32                                 
 
     ; populate the FILE struct
-    mov rax, [rel temp_struct_ptr]
-    mov rcx, [rel temp_buffer_ptr]
-    mov [rax + FILE.BufferPtr], rcx  ; save data pointer
-    mov [rax + FILE.FileSize], r12   ; save exact file size
-    mov qword [rax + FILE.Cursor], 0 ; Initialize cursor to 0
+    mov r12, [rel file_buffer]       ; R12 == wskaźnik do FILE
+    mov [r12 + FILE.FileSize], r14   ; rozmiar 
 
+    mov rax, r14
+    call malloc
+    test rax, rax
+    jz .allocation_failed
+    mov [rel temp_buffer_ptr], rax
+
+    ; read the file into memory
+    mov [r12 + FILE.BufferPtr], rax  ; saving the struct could be useful tho
+    mov qword [r12 + FILE.Cursor], 0
+
+    mov r8, r13
+    mov r9, r14                   ; R9 = rozmiar pliku
+    add r9, 2047                  ; round up to the nearest
+    and r9, ~0x7ff                 ; 2KB boundary
+    mov r10, [rel temp_buffer_ptr]
+    call read_sectors
+    test rax, rax                 ; Check if EFI_SUCCESS
+    jnz .not_found
+
+    mov rax, r12
     jmp .done
 
 .allocation_failed:
@@ -72,14 +139,21 @@ fopen:
     xor rax, rax
     jmp .done
 
+.read_failure:
+    LOG "A generic read error occured."
+    xor rax, rax
+    jmp .done
+
 .not_found:
-    LOG "Unable to find file: %s", rcx
     xor rax, rax                  ; Return NULL
     jmp .done
 .done:
+    pop r15
+    pop r14
     pop r13
     pop r12
     pop rbx
+    mov rsp, rbp
     pop rbp
     ret
 

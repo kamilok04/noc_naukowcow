@@ -94,3 +94,101 @@ find_iso_file:
     pop r12
     pop rbx
     ret
+
+; ------------------------------------------------------------------------------
+; search_directory
+; Searches a loaded directory buffer for a specific entry name.
+; Inputs:
+;   RDI - Pointer to the loaded directory buffer in memory
+;   RCX - Total size of the directory in bytes
+;   RSI - Pointer to the null-terminated target string (e.g., "ASSETS" or "OK.BMP;1")
+; Outputs:
+;   RAX - Extent LBA (0 if not found)
+;   RDX - File/Directory Size in bytes
+; ------------------------------------------------------------------------------
+search_directory:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    
+    
+    mov r8, rsi
+    xor r12, r12
+    LOG "Looking for a directory @ %x", rdi
+    
+.strlen:
+    cmp byte [r8 + r12], 0
+    jz .start_search
+    inc r12
+    jmp .strlen
+    
+.start_search:
+    mov rbx, 0                       
+    
+.record_loop:
+    cmp rbx, rcx
+    jge .not_found                   ; no more directory to search in
+    
+    movzx r13, byte [rdi + rbx]      ; R13 = długość wpisu katalogu 
+    
+    test r13, r13
+    jz .next_sector_padding          ; pomiń jeśli 0
+    
+
+    movzx rax, byte [rdi + rbx + 32]
+
+    push rcx
+    push rdi
+    push rsi
+    
+    lea r8, [rdi + rbx + 33]         ; R8 = nazwa pliku
+    mov rcx, r12                     ; RCX = długość stringa
+.strcmp:
+    mov al, byte [r8]
+    mov dl, byte [rsi]
+    cmp al, dl
+    jne .strcmp_fail
+    inc r8
+    inc rsi
+    dec rcx
+    jnz .strcmp
+
+    ; znalezione! wyjmij dane
+    LOG "Znaleziono folder."
+    pop rsi
+    pop rdi
+    pop rcx
+    mov eax, dword [rdi + rbx + 2]   ; LBA +2 LE
+    mov edx, dword [rdi + rbx + 10]  ; Rozmiar +10 LE
+    jmp .done
+
+.strcmp_fail:
+    pop rsi
+    pop rdi
+    pop rcx
+
+.next_record:
+    add rbx, r13                     ; Przewiń do kolejnego katalogu
+    jmp .record_loop
+
+.next_sector_padding:
+    ; ISO 9660: Jeśli katalog leży między sektorami, ten drugi będzie dopchany zerami
+    LOG "Zero padding found."
+    mov rax, rbx
+    and rax, ~0x7ff                 ; Do 2KB w górę
+    add rax, 0x800
+    mov rbx, rax
+    jmp .record_loop
+
+.not_found:
+    LOG "Nie znaleziono folderu."
+    xor rax, rax                     ; 0 jak się nic nie załadowało
+
+.done:
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret

@@ -129,3 +129,63 @@ update_mouse:
     add rsp, 32
     pop rbp
     ret
+
+; ------------------------------------------------------------------------------
+; handle_mouse_click
+; Converts mouse coordinates to a 0x88 index and generates legal moves.
+; ------------------------------------------------------------------------------
+handle_mouse_click:
+    push rbp
+    mov rbp, rsp
+    push rax
+    push rcx
+    push rdx
+    
+    ; get mouse coordinates
+    mov ecx, dword [rel mouse_x]
+    mov r8d, dword [rel mouse_y]
+    LOG "Mouse Y = %d", r8
+    
+    ; normalize
+    sub rcx, BOARD_START_X
+    jl .off_board                    ; too far left
+    cmp rcx, 8 * SQUARE_SIZE
+    jge .off_board                   ; too far right
+    
+    sub r8, BOARD_START_Y
+    jl .off_board                    ; too far up
+    cmp r8, 8 * SQUARE_SIZE
+    jge .off_board                   ; too far down
+
+    mov r9, SQUARE_SIZE
+    
+    ; get the column
+    mov rax, rcx
+    xor rdx, rdx                 
+    div r9                           
+    mov rcx, rax                     ; RCX = column
+    
+    mov rax, r8
+    xor rdx, rdx
+    div r9
+    mov r8, rax                      ; R8 = row
+    ; see what moves are legal
+    ; grab the index
+    shl r8, 4
+    or rcx, r8
+
+    mov r8, rcx
+    LOG "Click is on the board, %x", r8
+    call generate_moves_for_square
+    jmp .done
+    
+.off_board:
+    ; if off-board, clear
+    mov byte [rel valid_moves_count], 0
+
+.done:
+    pop rdx
+    pop rcx
+    pop rax
+    pop rbp
+    ret

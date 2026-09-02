@@ -22,9 +22,15 @@ is_on_board:
 ;   CL, DL
 ; ------------------------------------------------------------------------------
 is_friendly_fire:
-    xor rax, rax
+
+;    LOG "Checking for friendly fire."
+    movzx rax, al
+    movzx rbx, bl
+    LOG "RAX = %x, RBX = %x", rax, rbx
+    push rcx
+    push rdx
     test bl, bl
-    jz .valid             
+    jz .not_friendly             
 
     ; white: 1-6
     ; black: 7-12
@@ -35,10 +41,17 @@ is_friendly_fire:
     setae dl   
 
     cmp cl, dl
-    jne .valid            ; If colors match, it's friendly fire
-.invalid:
+    je .friendly            ; If colors match, it's friendly fire
+
+.not_friendly:
+    xor rax, rax
+    jmp .done
+.friendly:
+    xor rax, rax
     inc rax
-.valid:
+.done:
+    pop rdx
+    pop rcx
     ret
 
 ; ------------------------------------------------------------------------------
@@ -54,19 +67,20 @@ is_friendly_fire:
 ;   R9  - Directional offset (e.g., -16 for Up)
 ; ------------------------------------------------------------------------------
 check_steps:
-    mov r10l, al
+    movzx r10, al
 .step_loop:
     add r8, r9
-    
+   ; LOG "Checking a move onto %x", r8
     mov rax, r8
     call is_on_board
     jnz .ray_done           ; ZF = 0 -> out of bounds
     
     ; what is on the target square?
-    lea rbx, [rel board_state]
+    lea rbx, [rel board]
     mov bl, byte [rbx + r8] ; BL = target piece ID
     
     push rax
+    mov rax, r10
     call is_friendly_fire   ; RAX = 1 if friendly fire
     cmp rax, 1
     pop rax
@@ -74,7 +88,7 @@ check_steps:
     
     ; at this point the move is legal*
     ; (checks, pins, etc. aside)
-    ; LOG "Valid move found at index %x", r8
+   ; LOG "Valid move found at index %x", r8
     push rax
     mov rax, r8          
     call add_valid_move
@@ -86,7 +100,7 @@ check_steps:
     
     ; empty field
     ; if the piece slides, repeat
-    mov bl, byte[rel is_sliding + r10l]
+    mov bl, byte[is_sliding + r10]
     test bl, bl
     jnz .step_loop
 
@@ -112,14 +126,13 @@ check_white_pawn:
     call is_on_board
     jnz .check_captures       ; If off board, skip forward moves
     
-    lea rbx, [rel board_state]
+    lea rbx, [rel board]
     mov bl, byte [rbx + rax]
     test bl, bl
     jnz .check_captures       ; If occupied, skip forward moves
     
-    ; LOG "Valid Single Push at %x -> %x", r8, rax
+    LOG "Valid Single Push at %x -> %x", r8, rax
     push rax
-    mov rax, r8          
     call add_valid_move
     pop rax
     
@@ -132,14 +145,13 @@ check_white_pawn:
     
     mov rax, r8
     sub rax, 0x20
-    lea rbx, [rel board_state]
+    lea rbx, [rel board]
     mov bl, byte [rbx + rax]
     test bl, bl
     jnz .check_captures       ; Must be empty
     
-    ; LOG "Valid Double Push at %x -> %x", r8, rax
+    ;LOG "Valid Double Push at %x -> %x", r8, rax
     push rax
-    mov rax, r8          
     call add_valid_move
     pop rax
 
@@ -154,7 +166,7 @@ check_white_pawn:
     cmp al, byte [rel en_passant_target] ; there can never be a valid capture and a valid EP capture in the same direction
     je .ep_right_valid
 
-    lea rbx, [rel board_state]
+    lea rbx, [rel board]
     mov cl, byte [rbx + rax] ; CL = target piece ID
     
     test cl, cl
@@ -165,7 +177,6 @@ check_white_pawn:
     
     ; LOG "Valid Capture Right at %x -> %x", r8, rax
     push rax
-    mov rax, r8          
     call add_valid_move
     pop rax
 
@@ -174,7 +185,6 @@ check_white_pawn:
 .ep_right_valid:
     ; LOG "Valid EP Capture Right at %x -> %x", r8, rax
     push rax
-    mov rax, r8          
     call add_valid_move
     pop rax
 .capture_left:
@@ -187,7 +197,7 @@ check_white_pawn:
     cmp al, byte [rel en_passant_target]
     je .ep_left_valid
 
-    lea rbx, [rel board_state]
+    lea rbx, [rel board]
     mov cl, byte [rbx + rax]
     
     test cl, cl
@@ -199,14 +209,12 @@ check_white_pawn:
     ; LOG "Valid Capture Left at %x -> %x",r8, rax
 
     push rax
-    mov rax, r8          
     call add_valid_move
     pop rax
     jmp .done
 .ep_left_valid:
     ; LOG "Valid EP Capture Left at %x -> %x", r8, rax
     push rax
-    mov rax, r8          
     call add_valid_move
     pop rax
 
@@ -229,14 +237,13 @@ check_black_pawn:
     call is_on_board
     jnz .check_captures       
     
-    lea rbx, [rel board_state]
+    lea rbx, [rel board]
     mov cl, byte [rbx + rax]
     test cl, cl
     jnz .check_captures       ;
     
    ;  LOG "Valid Single Push at %x -> %x",r8, rax
     push rax
-    mov rax, r8          
     call add_valid_move
     pop rax
     
@@ -247,14 +254,13 @@ check_black_pawn:
     
     mov rax, r8
     add rax, 0x20
-    lea rbx, [rel board_state]
+    lea rbx, [rel board]
     mov cl, byte [rbx + rax]
     test cl, cl
     jnz .check_captures       ; occupied
     
    ; LOG "Valid Double Push at %x -> %x",r8, rax
     push rax
-    mov rax, r8          
     call add_valid_move
     pop rax
 
@@ -268,7 +274,7 @@ check_black_pawn:
     cmp al, byte [rel en_passant_target]
     je .ep_0F_valid
 
-    lea rbx, [rel board_state]
+    lea rbx, [rel board]
     mov cl, byte [rbx + rax]
     test cl, cl
     jz .capture_next         
@@ -277,7 +283,6 @@ check_black_pawn:
     
     ;LOG "Valid Capture B Left at %x -> %x",r8, rax
     push rax
-    mov rax, r8          
     call add_valid_move
     pop rax
     jmp .capture_next
@@ -285,7 +290,6 @@ check_black_pawn:
 .ep_0F_valid:
     ;LOG "Valid En Passant B Left at %x -> %x",r8, rax
     push rax
-    mov rax, r8          
     call add_valid_move
     pop rax
 
@@ -301,7 +305,7 @@ check_black_pawn:
     je .ep_11_valid
 
     ; Standard Capture Check
-    lea rbx, [rel board_state]
+    lea rbx, [rel board]
     mov cl, byte [rbx + rax]
     test cl, cl
     jz .done                 
@@ -310,7 +314,6 @@ check_black_pawn:
     
   ;  LOG "Valid Capture B Right at %x -> %x",r8, rax
     push rax
-    mov rax, r8          
     call add_valid_move
     pop rax
     jmp .done
@@ -318,7 +321,6 @@ check_black_pawn:
 .ep_11_valid:
    ; LOG "Valid En Passant B Right at %x -> %x",r8, rax
     push rax
-    mov rax, r8          
     call add_valid_move
     pop rax
 

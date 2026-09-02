@@ -34,7 +34,7 @@ efi_main:
     ;        if it expires, reboot
     ; 7.5.1: a boot image may disable the watchdog
     ;        if it wants to
-    
+
     xor rcx, rcx                  ; no timeout
     xor rdx, rdx                  ; no error
     xor r8, r8                    ; nothing
@@ -167,7 +167,7 @@ efi_main:
     mov [rel mouse_event_array], rax
     
     LOG "Initializing the game."
-    call draw_chessboard
+    call render_playfield
     
     call swap_buffers
     
@@ -187,10 +187,8 @@ efi_main:
     
     ; Trap wake-up errors
     test rax, rax
-    jz .drain_queue 
-    LOG "FATAL: WaitForEvent Error: %x", rax
-    cli
-    hlt
+    ; let it try again
+    jnz .main_loop
 
 .drain_queue:
     xor r15, r15                         
@@ -217,9 +215,26 @@ efi_main:
 
 .check_draw:
     test r15, r15
-    jz .main_loop                        ;
+    jz .main_loop      
+    
+    movzx eax, byte [rel mouse_state + 12] ; AL = current LMB state
+    movzx ebx, byte [rel prev_lmb_state]   ; BL = previous frame's LMB state
 
+    cmp bl, 1
+    jne .save_mouse_state
+    cmp al, 0
+    jne .save_mouse_state
 
+    ; was 1, is 0, this is very much a click (or a drag, y'know)
+    LOG "Click."
+    call handle_mouse_click
+
+    call render_playfield           
+    call swap_buffers                
+    mov byte [rel cursor_is_saved], 0;
+
+.save_mouse_state:
+    mov byte [rel prev_lmb_state], al
     ; copy background from below cursor
     call restore_cursor_background
     
@@ -278,6 +293,9 @@ efi_main:
 %include "gop_utils.asm"
 %include "draw_chessboard.asm"
 %include "init_assets.asm"
+%include "validity_checks.asm"
+%include "chess_helpers.asm"
+%include "move_generator.asm"
 
 ; Pad .text to 8KB
 align 8192, db 0
@@ -290,6 +308,10 @@ text_size equ text_vsize
 ; ==============================================================================
 data_raw_ptr equ $ - DOS_HEADER
 data_rva equ text_rva + text_vsize
+
+    ; Chess!
+    %include "board_state.asm"
+    
 
     ; Serial Logs
     msg_printf_test db "This is a dynamically loaded string.",  0
@@ -347,6 +369,7 @@ data_rva equ text_rva + text_vsize
 
     ; mouse state
     mouse_state times 32 db 0 
+    prev_lmb_state db 0 ; 1 = pressed
 
     ; double buffering 
     backbuffer_ptr  dq 0
@@ -382,9 +405,7 @@ data_rva equ text_rva + text_vsize
         dw 0x6459, 0x11d2
         db 0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b
     
-    ; Chess!
-    %include "board_state.asm"
-    
+   
 
 ; Pad .data to 8KB
 align 8192, db 0

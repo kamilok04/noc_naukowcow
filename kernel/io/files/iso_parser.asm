@@ -14,9 +14,9 @@
 ;   RDX - Total size of the file in bytes (0 if not found)
 ; ------------------------------------------------------------------------------
 find_iso_file:
-    LOG "ISO9660: filename: %s", rsi
-    LOG "ISO9660: dir ptr: %d", rdi
-    LOG "ISO9660: dir size: %d", rcx
+    ; LOG "ISO9660: filename: %s", rsi
+    ; LOG "ISO9660: dir ptr: %d", rdi
+    ; LOG "ISO9660: dir size: %d", rcx
     push rbx
     push r12
     push r13
@@ -81,12 +81,12 @@ find_iso_file:
     pop rsi
 
 .skip:
-    LOG "ISO9660: Wrong file, looking for next one"
+    ; LOG "ISO9660: Wrong file, looking for next one"
     add r12, rbx       ; next entry
     jmp .next_record
 
 .not_found:
-    LOG "ISO9660: File not found."
+    ; LOG "ISO9660: File not found."
     xor rax, rax       ; NULL
     xor rdx, rdx
 .done:
@@ -116,7 +116,7 @@ search_directory:
     
     mov r8, rsi
     xor r12, r12
-    LOG "Looking for a directory @ %x", rdi
+    ; LOG "Looking for a directory @ %x", rdi
     
 .strlen:
     cmp byte [r8 + r12], 0
@@ -156,7 +156,7 @@ search_directory:
     jnz .strcmp
 
     ; znalezione! wyjmij dane
-    LOG "Znaleziono folder."
+    ; LOG "Znaleziono folder."
     pop rsi
     pop rdi
     pop rcx
@@ -175,7 +175,7 @@ search_directory:
 
 .next_sector_padding:
     ; ISO 9660: Jeśli katalog leży między sektorami, ten drugi będzie dopchany zerami
-    LOG "Zero padding found."
+    ; LOG "Zero padding found."
     mov rax, rbx
     and rax, ~0x7ff                 ; Do 2KB w górę
     add rax, 0x800
@@ -183,7 +183,7 @@ search_directory:
     jmp .record_loop
 
 .not_found:
-    LOG "Nie znaleziono folderu."
+    ; LOG "Nie znaleziono folderu."
     xor rax, rax                     ; 0 jak się nic nie załadowało
 
 .done:

@@ -1,6 +1,3 @@
-%ifndef VALIDITY_CHECKS
-%include "validity_checks.asm"
-%endif
 
 ; ------------------------------------------------------------------------------
 ; generate_moves_for_square
@@ -18,7 +15,7 @@ generate_moves_for_square:
     mov byte [rel valid_moves_count], 0
     
     ; identify the piece
-    lea rbx, [rel board_state]
+    lea rbx, [rel board]
     mov al, byte [rbx + r8]
     test al, al
     jz .done                 ; This should not happen 
@@ -27,7 +24,7 @@ generate_moves_for_square:
     mov cl, al
     cmp cl, 7
     jl .is_white
-    sub cl, 6                ; whiten a black piece temporarily
+    sub cl, 6              ; whiten a black piece temporarily
     ; CL now holds the piece type: 1=P, 2=N, 3=B, 4=R, 5=Q, 6=K
 .is_white:
     ; dispatch
@@ -48,10 +45,10 @@ generate_moves_for_square:
 .handle_pawn:
     cmp al, 7
     jge .black_pawn
-    call generate_white_pawn
+    call check_white_pawn
     jmp .done
 .black_pawn:
-    call generate_black_pawn
+    call check_black_pawn
     jmp .done
 
 .handle_knight:
@@ -84,6 +81,7 @@ generate_moves_for_square:
     
     push r8                  ; starting piece
     push rax                 ; original piece ID
+    LOG "Reporting for piece no. %d", rax
     push rcx                 ; loop counter
     push rsi                 ; offset table pointer
     

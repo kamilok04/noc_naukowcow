@@ -5,14 +5,11 @@
 add_valid_move:
     push rbx
     push rcx
-    
     movzx rcx, byte [rel valid_moves_count]
     lea rbx, [rel valid_moves_list]
     mov byte [rbx + rcx], al         
-    
     inc rcx
     mov byte [rel valid_moves_count], cl ; bump the counter
-    
     pop rcx
     pop rbx
     ret

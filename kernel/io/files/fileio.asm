@@ -75,8 +75,8 @@ fopen:
     mov rdi, [rel file_buffer]
     mov rcx, r14                     
     lea rsi, [rel path_token]
-    LOG "Directory size is %x @ %x", rcx, rdi
-    LOG "Looking for token %s", rsi
+    ; LOG "Directory size is %x @ %x", rcx, rdi
+    ; LOG "Looking for token %s", rsi
     call search_directory
     
     mov r13, rax                     ; nowe LBA

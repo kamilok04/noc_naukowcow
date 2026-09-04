@@ -295,6 +295,7 @@ efi_main:
 %include "init_assets.asm"
 %include "validity_checks.asm"
 %include "chess_helpers.asm"
+%include "state_machine.asm"
 %include "move_generator.asm"
 
 ; Pad .text to 8KB

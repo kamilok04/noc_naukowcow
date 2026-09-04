@@ -10,7 +10,7 @@
     W_QUEEN     equ 5    
     W_KING      equ 6   
    
-    B_PAWN      equ 7      ; black = white + 8
+    B_PAWN      equ 7      ; black = white + 6
     B_KNIGHT    equ 8
     B_BISHOP    equ 9  
     B_ROOK      equ 10
@@ -41,7 +41,7 @@ piece_bitmaps: times 13 dq 0
 ; File paths for the assets
 path_wpawn   db "ASSETS/CHESS/WPAWN.BMP;1", 0
 path_wknight db "ASSETS/CHESS/WKNIGHT.BMP;1", 0
-path_wking   db "ASSETS/CHESS/WKING.BMP;1", 0
+path_wking   db "ASSETS/CHESS/PKING.BMP;1", 0
 path_wqueen  db "ASSETS/CHESS/WQUEEN.BMP;1", 0
 path_wrook   db "ASSETS/CHESS/WROOK.BMP;1", 0
 path_wbishop db "ASSETS/CHESS/WBISHOP.BMP;1", 0
@@ -77,3 +77,5 @@ is_sliding     db 0, 0, 0, 1, 1, 1, 0, 0, 0
 en_passant_target db 0xFF ; initialize to none
 valid_moves_count db 0
 valid_moves_list  times 27 db 0 ; 27 is exactly enough, check for yourself!
+current_color db 0 ; 0 is white
+selected_square db 0xff

@@ -176,7 +176,7 @@ handle_mouse_click:
 
     mov r8, rcx
     LOG "Click is on the board, %x", r8
-    call generate_moves_for_square
+    call the_chess_state_machine
     jmp .done
     
 .off_board:

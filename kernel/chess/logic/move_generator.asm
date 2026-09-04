@@ -67,6 +67,10 @@ generate_moves_for_square:
     jmp .offset_loop
 
 .handle_queen:
+    mov rcx, 8
+    lea rsi, [rel king_offsets]
+    jmp .offset_loop
+
 .handle_king:
     mov rcx, 8
     lea rsi, [rel king_offsets]
@@ -81,10 +85,10 @@ generate_moves_for_square:
     
     push r8                  ; starting piece
     push rax                 ; original piece ID
-    LOG "Reporting for piece no. %d", rax
+    ; LOG "Reporting for piece no. %d", rax
     push rcx                 ; loop counter
     push rsi                 ; offset table pointer
-    
+
     call check_steps         ; go!
     
     pop rsi

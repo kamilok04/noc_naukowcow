@@ -24,9 +24,9 @@ is_on_board:
 is_friendly_fire:
 
 ;    LOG "Checking for friendly fire."
-    movzx rax, al
-    movzx rbx, bl
-    LOG "RAX = %x, RBX = %x", rax, rbx
+    ; movzx rax, al
+    ; movzx rbx, bl
+    ; LOG "RAX = %x, RBX = %x", rax, rbx
     push rcx
     push rdx
     test bl, bl
@@ -100,7 +100,8 @@ check_steps:
     
     ; empty field
     ; if the piece slides, repeat
-    mov bl, byte[is_sliding + r10]
+    lea rbx, byte[rel is_sliding]
+    mov bl, byte[rbx + r10]
     test bl, bl
     jnz .step_loop
 
@@ -161,8 +162,13 @@ check_white_pawn:
     mov rax, r8
     sub rax, 0x0F
     call is_on_board
-    jnz .capture_left        ; ZF: an attack would go out-of-bounds
+    jnz .capture_left        ; ZF set: an attack would go out-of-bounds
 
+    ;push rbx
+    ;movzx rbx, byte [rel en_passant_target]
+    ; LOG "Checking %x for capture", rax
+    ; LOG "EP target is now %x", rbx
+    ;pop rbx
     cmp al, byte [rel en_passant_target] ; there can never be a valid capture and a valid EP capture in the same direction
     je .ep_right_valid
 
@@ -183,7 +189,7 @@ check_white_pawn:
     jmp .capture_left
 
 .ep_right_valid:
-    ; LOG "Valid EP Capture Right at %x -> %x", r8, rax
+    LOG "Valid EP Capture Right at %x -> %x", r8, rax
     push rax
     call add_valid_move
     pop rax
@@ -194,6 +200,7 @@ check_white_pawn:
     call is_on_board    ; LOG "Valid Capture Left at %x -> %x",r8, rax
     jnz .done                ; out of bounds
 
+    LOG "Checking %x for capture", rax
     cmp al, byte [rel en_passant_target]
     je .ep_left_valid
 
@@ -271,6 +278,7 @@ check_black_pawn:
     jnz .capture_next      
 
     ; EP
+    
     cmp al, byte [rel en_passant_target]
     je .ep_0F_valid
 

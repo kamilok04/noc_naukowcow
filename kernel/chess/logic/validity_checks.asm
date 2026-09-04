@@ -65,47 +65,44 @@ is_friendly_fire:
 ;   R8  - Starting square index (0x00 to 0x77)
 ;   AL  - Moving piece ID
 ;   R9  - Directional offset (e.g., -16 for Up)
+;   R11 - sliding flag (0 or 1)
 ; ------------------------------------------------------------------------------
+
 check_steps:
-    movzx r10, al
+    push rdi                
+    mov rdi, r8             
+    movzx r10, al           
+    
 .step_loop:
-    add r8, r9
-   ; LOG "Checking a move onto %x", r8
-    mov rax, r8
+    add rdi, r9              
+    
+    mov rax, rdi
     call is_on_board
-    jnz .ray_done           ; ZF = 0 -> out of bounds
+    jnz .ray_done            ; ZF = 0 -> out of bounds
     
-    ; what is on the target square?
+    ; What is on the target square?
     lea rbx, [rel board]
-    mov bl, byte [rbx + r8] ; BL = target piece ID
+    mov bl, byte [rbx + rdi] ; BL = target piece ID
     
     push rax
-    mov rax, r10
-    call is_friendly_fire   ; RAX = 1 if friendly fire
+    mov rax, r10             ; pass original piece ID
+    call is_friendly_fire   
     cmp rax, 1
-    pop rax
-    je .ray_done            ; friendly fired
+    pop rax                  
     
-    ; at this point the move is legal*
-    ; (checks, pins, etc. aside)
-   ; LOG "Valid move found at index %x", r8
+    je .ray_done             
     push rax
-    mov rax, r8          
-    call add_valid_move
+    call add_valid_move      
     pop rax
     
-    ; is an enemy hit?
     test bl, bl
-    jnz .ray_done           ; valid, but blocks path
+    jnz .ray_done            
     
-    ; empty field
-    ; if the piece slides, repeat
-    lea rbx, byte[rel is_sliding]
-    mov bl, byte[rbx + r10]
-    test bl, bl
+    test r11, r11
     jnz .step_loop
 
 .ray_done:
+    pop rdi                  ; Restore RDI
     ret
 
 ; ------------------------------------------------------------------------------

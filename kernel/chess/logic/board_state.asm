@@ -35,6 +35,8 @@ board:
     db  1,  1,  1,  1,  1,  1,  1,  1, 0, 0, 0, 0, 0, 0, 0, 0  ; 
     db  4,  2,  3,  5,  6,  3,  2,  4, 0, 0, 0, 0, 0, 0, 0, 0  ; white
 
+sandbox_board: times 128 db 0 ; for actual move detection
+
 ; Array to hold the memory addresses of the loaded BMP files (Index 0 is unused)
 piece_bitmaps: times 13 dq 0
 

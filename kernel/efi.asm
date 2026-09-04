@@ -226,7 +226,7 @@ efi_main:
     jne .save_mouse_state
 
     ; was 1, is 0, this is very much a click (or a drag, y'know)
-    LOG "Click."
+    ; LOG "Click."
     call handle_mouse_click
 
     call render_playfield           
@@ -297,6 +297,7 @@ efi_main:
 %include "chess_helpers.asm"
 %include "state_machine.asm"
 %include "move_generator.asm"
+%include "king_safety.asm"
 
 ; Pad .text to 8KB
 align 8192, db 0

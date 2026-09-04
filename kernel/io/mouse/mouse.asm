@@ -144,7 +144,7 @@ handle_mouse_click:
     ; get mouse coordinates
     mov ecx, dword [rel mouse_x]
     mov r8d, dword [rel mouse_y]
-    LOG "Mouse Y = %d", r8
+    ; LOG "Mouse Y = %d", r8
     
     ; normalize
     sub rcx, BOARD_START_X
@@ -175,7 +175,7 @@ handle_mouse_click:
     or rcx, r8
 
     mov r8, rcx
-    LOG "Click is on the board, %x", r8
+    ; LOG "Click is on the board, %x", r8
     call the_chess_state_machine
     jmp .done
     

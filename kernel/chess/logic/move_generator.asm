@@ -16,8 +16,8 @@ generate_moves_for_square:
     
     ; identify the piece
     lea rbx, [rel board]
-    mov al, byte [rbx + r8]
-    test al, al
+    movzx rax, byte [rbx + r8]
+    test rax, rax
     jz .done                 ; This should not happen 
     
     ; normalize IDs
@@ -88,7 +88,9 @@ generate_moves_for_square:
     ; LOG "Reporting for piece no. %d", rax
     push rcx                 ; loop counter
     push rsi                 ; offset table pointer
-
+    
+    lea rbx, [rel is_sliding] ; this is important
+    movzx r11, byte [rbx + rax]
     call check_steps         ; go!
     
     pop rsi

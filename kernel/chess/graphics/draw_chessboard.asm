@@ -13,6 +13,7 @@ render_playfield:
     call _draw_chessboard
     call _draw_valid_moves
     call _draw_pieces
+    call draw_promotion_menu
 
     mov rsp, rbp
     pop rbp
@@ -196,6 +197,117 @@ _draw_pieces:
 
 .done:
     pop r12
+    mov rsp, rbp
+    pop rbp
+    ret
+
+; ------------------------------------------------------------------------------
+; draw_promotion_menu
+; Overlays the promotion menu onto the linear backbuffer.
+; ------------------------------------------------------------------------------
+draw_promotion_menu:
+    push rbp
+    mov rbp, rsp
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rdi
+    push rsi
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+
+    ; is there actually a promotion happening?
+    cmp byte [rel promotion_pending], 1
+    jne .done
+
+    ; get coords
+    movzx rax, byte [rel promotion_sq]
+    mov rcx, rax
+    and rcx, 0x0F
+    imul rcx, SQUARE_SIZE
+    add rcx, BOARD_START_X           ; RCX = screen c
+
+    shr rax, 4
+    imul rax, SQUARE_SIZE
+    add rax, BOARD_START_Y           ; RAX = screen y
+    
+    mov r12, rcx                     ; R12 = copy of X
+    mov r13, rax                     ; R13 = copy of Y
+
+    ; draw a bkgd
+    mov rdi, [rel backbuffer_ptr]
+    mov rsi, [rel framebuffer_pitch]
+    mov rcx, r12                    
+    
+    ; dwtermine background Y 
+    ; (white goes down, black goes up)
+    mov rdx, r13                     ; starting y
+    cmp byte [rel current_color], 0
+    je .draw_bg
+    sub rdx, SQUARE_SIZE * 3
+.draw_bg:
+    mov r8, SQUARE_SIZE              ; width = 1 tile
+    mov r9, SQUARE_SIZE * 4          ; height = 4 tiles
+    mov r10d, COLOR_PROMOTION        
+    call draw_rectangle
+
+    mov r14, 4                    
+    
+    cmp byte [rel current_color], 0
+    jne .setup_black_sprites
+    
+.setup_white_sprites:
+    lea rbx, [rel promotion_lookup_w]
+    mov r11, SQUARE_SIZE             ; step down (+)
+    jmp .draw_sprites_loop
+
+.setup_black_sprites:
+    lea rbx, [rel promotion_lookup_b]
+    mov r11, SQUARE_SIZE
+    neg r11                          ; step up (-)
+
+.draw_sprites_loop:
+    movzx rax, byte [rbx]            ; RAX = piece ID
+    
+    lea r8, [rel piece_bitmaps]
+    mov r8, [r8 + rax * 8]           ; R8 = address of BMP
+    
+    mov rdi, [rel backbuffer_ptr]
+    mov rsi, [rel framebuffer_pitch]
+    mov rcx, r12                     ; Screen X
+    mov rdx, r13                     ; Screen Y
+    
+    push r11
+    push rbx
+    call draw_bitmap                 ; draw
+    pop rbx
+    pop r11
+    
+    add r13, r11                     
+    inc rbx                          
+    dec r14
+    jnz .draw_sprites_loop
+
+.done:
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rsi
+    pop rdi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
     mov rsp, rbp
     pop rbp
     ret

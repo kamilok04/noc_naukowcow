@@ -12,6 +12,8 @@ the_chess_state_machine:
     jne .action_phase
     
 .selection_phase:
+    ; immediately skip the promo click handler when possible
+    ; an invalid click cannot possibly promote a pawn
 
     lea rbx, [rel board]
     mov cl, byte [rbx + r8]          ; CL = piece ID
@@ -36,7 +38,7 @@ the_chess_state_machine:
     ; LOG "Valid piece selected."
     mov byte [rel selected_square], r8b
     call generate_moves_for_square
-    jmp .done
+    jmp promotion_interrupt_resolved.done
 
 .action_phase:
     ; The user clicked a square while a piece is currently picked up (AL = selected square)
@@ -69,6 +71,11 @@ the_chess_state_machine:
     
     ; clear the square the piece just left
     mov byte [rbx + rdx], EMPTY
+
+
+.castling_and_rights:
+
+  
 
     ; consider castling
     push rcx 
@@ -262,50 +269,29 @@ the_chess_state_machine:
     cmp byte [rel en_passant_target], 0xff
     je .ep_check_done
 
-    ; pawn capture
-    cmp cl, W_PAWN
-    je .white_ep_square_check
-    cmp cl, B_PAWN
-    jne .black_ep_square_check
-    cmp r11b, 1
+    cmp r8b, byte [rel en_passant_target]
     jne .ep_check_done
 
-    ; is the target piece directly in front/back of target
-    cmp byte[rel current_color], 0 ; is white?
-    jne .black_ep_square_check
-.white_ep_square_check:
-    push rcx
-    push rdx 
-    movzx rcx, byte[rel en_passant_target]
-    ; remove whatever is 0x10 over the target
-    mov rdx, rcx
-    add rdx, 0x10
-    cmp cl, r8b
-    je .is_ep
-    pop rdx
-    pop rcx
+    cmp cl, W_PAWN
+    je .white_is_ep
+    cmp cl, B_PAWN
+    je .black_is_ep
     jmp .ep_check_done
-.black_ep_square_check:
-    push rcx 
-    push rdx
-    movzx rcx, byte[rel en_passant_target]
-    ; remove whatever is 0x10 below the target
-    mov rdx, rcx
-    sub rdx, 0x10 ; will never set ZF due to EP clamping 
-    cmp cl, r8b
-    je .is_ep
-    pop rdx
-    pop rcx
 
+.white_is_ep:
+    ; white pawn moving up
+    ; the captured black pawn is 0x10 below the target.
+    movzx rdx, r8b
+    add rdx, 0x10
+    mov byte [rbx + rdx], EMPTY
     jmp .ep_check_done
-.is_ep:
-    ; cl is computed square, clear it
-    ; LOG "This was an EP capture."
-    mov byte[rbx + rdx], EMPTY
-    pop rdx
-    pop rcx
-    ; an EP cannot be both used and set, skip
-    ; jmp .clear_ep
+
+.black_is_ep:
+    ; black pawn moving down
+    ; the captured white pawn is 0x10 above the target.
+    movzx rdx, r8b
+    sub rdx, 0x10
+    mov byte [rbx + rdx], EMPTY
 .ep_check_done:    
     ; reset selection
     mov byte [rel selected_square], 0xFF
@@ -336,11 +322,11 @@ the_chess_state_machine:
     jg .clear_ep
     LOG "EP set to %x", rcx
     mov byte [rel en_passant_target], cl
-    jmp .change_color
+    jmp promotion_interrupt_resolved.change_color
 
 .check_black_ep:
     cmp cl, B_PAWN
-    jne .change_color
+    jne promotion_interrupt_resolved.change_color
 .black_pawn_set_ep:
     push rcx
     mov rcx, r8
@@ -357,22 +343,62 @@ the_chess_state_machine:
     ; LOG "EP set to %x", rcx
     mov byte [rel en_passant_target], cl
     
-    jmp .change_color
+    jmp promotion_interrupt_resolved.change_color
     
 
 .clear_ep:
     pop rcx
-    ; LOG "EP unset R8 = %x, RDX = %x.", r8, rdx
     mov byte[rel en_passant_target], 0xff
-.change_color:
-    ; flip the color byte
-    xor byte [rel current_color], 1
-    jmp .done
+    jmp .check_for_promotion         
+
+.check_for_promotion:
+    cmp cl, 1                        ; White Pawn?
+    je .check_white_promo
+    cmp cl, 7                        ; Black Pawn?
+    je .check_black_promo
+    jmp promotion_interrupt_resolved.change_color
+
+.check_white_promo:
+    mov al, r8b
+    and al, 0x70
+    jnz promotion_interrupt_resolved.change_color  ; if not last rank, end turn
+    jmp .trigger_promo
+
+.check_black_promo:
+    mov al, r8b
+    and al, 0x70
+    cmp al, 0x70
+    jne promotion_interrupt_resolved.change_color  ; if not last rank, end turn
+    
+.trigger_promo:
+    mov byte [rel promotion_pending], 1 
+    mov byte [rel promotion_sq], r8b
+    jmp promotion_interrupt_resolved.done          ; promotion, pause the logic
 
 .off_board:
 .cancel_selection:
     mov byte [rel selected_square], 0xFF
     mov byte [rel valid_moves_count], 0
+    jmp promotion_interrupt_resolved.done
+promotion_interrupt_resolved:
+    push rbp
+    mov rbp, rsp
+    push r10
+    push r11
+
+  ; failsafe: logic should have been unpaused by now
+    test byte[rel promotion_pending], 0 
+    jne .invalid_processing
+.invalid_processing:
+    LOG "State machine is running without permission!!"
+    ; fall through?
+
+
+.change_color:
+    ; flip the color byte
+    xor byte [rel current_color], 1
+    jmp .done
+
 
 .done:
     pop r11

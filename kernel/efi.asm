@@ -299,6 +299,7 @@ efi_main:
 %include "move_generator.asm"
 %include "king_safety.asm"
 %include "check_castling.asm"
+%include "promotion_handler.asm"
 
 ; Pad .text to 8KB
 align 8192, db 0

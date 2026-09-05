@@ -24,6 +24,7 @@ BOARD_START_Y  equ 100           ; margin of 100
 COLOR_LIGHT    equ 0x00F0D9B5    ; light wood-ish
 COLOR_DARK     equ 0x00B58863    ; dark wood-ish
 COLOR_HIGHLIGHT equ 0x007FA650   ; g r e e n
+COLOR_PROMOTION equ 0x00D3D3D3   ; grey
 
 ; 0 = blank square
 ; 1-6 = white (PNBRQK in this order)
@@ -114,3 +115,11 @@ WRh_start db 0x76
 BK_start db 0x05
 BRa_start db 0x04
 BRh_start db 0x06
+
+; promotion logic
+promotion_pending db 0       ; 1 when waiting for user input
+promotion_sq      db 0       ; index of a square to promote into
+
+; QRBN
+promotion_lookup_w db 5, 4, 3, 2
+promotion_lookup_b db 11, 10, 9, 8

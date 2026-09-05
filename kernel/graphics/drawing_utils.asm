@@ -7,7 +7,7 @@
 ; Draws a filled rectangle to the linear framebuffer.
 ; Inputs:
 ;   RDI  - framebuffer ptr
-;   RSI  - ixelsPerScanLine (Pitch)
+;   RSI  - PixelsPerScanLine (Pitch)
 ;   RCX  - left padding
 ;   RDX  - top padding
 ;   R8   - width (in pixels)

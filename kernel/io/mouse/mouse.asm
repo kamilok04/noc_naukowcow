@@ -140,12 +140,28 @@ handle_mouse_click:
     push rax
     push rcx
     push rdx
-    
+    push r10
+    push r11
+
     ; get mouse coordinates
     mov ecx, dword [rel mouse_x]
     mov r8d, dword [rel mouse_y]
+
+    mov r10, rcx        ; keep the mouse coords
+    mov r11, r8         
     ; LOG "Mouse Y = %d", r8
     
+    mov rdx, r11 
+    call check_promotion_click
+    test rax, rax
+    jnz .done                    ; if intercepted by the menu, exit immediately
+
+    cmp byte [rel promotion_pending], 1
+    je .done                     ; ignore clicks outside the promotion menu
+    
+    mov rcx, r10
+    mov r8, r11
+
     ; normalize
     sub rcx, BOARD_START_X
     jl .off_board                    ; too far left
@@ -184,8 +200,90 @@ handle_mouse_click:
     mov byte [rel valid_moves_count], 0
 
 .done:
+    pop r11
+    pop r10
     pop rdx
     pop rcx
     pop rax
     pop rbp
+    ret
+
+; ------------------------------------------------------------------------------
+; check_promotion_click
+; Inputs: RCX = screen x, RDX = screen y
+; Outputs: RAX = 1 if click was intercepted, RAX = 0 if normal board click
+; ------------------------------------------------------------------------------
+check_promotion_click:
+    cmp byte [rel promotion_pending], 1
+    jne .not_intercepted
+    
+    movzx rax, byte [rel promotion_sq]
+    mov r8, rax
+    and r8, 0x0F
+    imul r8, SQUARE_SIZE
+    add r8, BOARD_START_X   ; R8 = screen x
+    
+    shr rax, 4
+    imul rax, SQUARE_SIZE
+    add rax, BOARD_START_Y   ; RAX = screen y
+    
+    ; check x bounds (menu will appear on the promoted column)
+    cmp rcx, r8
+    jl .not_intercepted
+    add r8, SQUARE_SIZE
+    cmp rcx, r8
+    jge .not_intercepted
+    
+    ; check y index (this willl determine the option picked)
+    mov r9, rdx              
+    sub r9, rax              
+    
+    ; Direction branch
+    mov bl, byte [rel current_color]
+    test bl, bl
+    jnz .black_bounds
+    
+.white_bounds:
+    ; white menu goes down: 
+    ; difference from menu's start must be 0 to (4*SQUARE_SIZE - 1)
+    cmp r9, 0
+    jl .not_intercepted
+    mov r10, SQUARE_SIZE
+    imul r10, 4
+    cmp r9, r10
+    jge .not_intercepted
+    
+    mov rax, r9
+    xor rdx, rdx                 
+    mov r10, SQUARE_SIZE         
+    div r10                      ; rax = clicked index
+    jmp .execute
+    
+.black_bounds:
+    
+    mov r9, rax
+    add r9, SQUARE_SIZE
+    dec r9
+    sub r9, rdx ; distance to the bottom of the tile
+
+    cmp r9, 0
+    jl .not_intercepted
+    mov r10, SQUARE_SIZE
+    imul r10, 4
+    cmp r9, r10
+    jge .not_intercepted
+    
+    mov rax, r9
+    xor rdx, rdx                 
+    mov r10, SQUARE_SIZE         
+    div r10           
+    
+.execute:
+    call resolve_promotion
+    
+    mov rax, 1               ; tell mouse handler to skip standard processing
+    ret
+
+.not_intercepted:
+    xor rax, rax             ; normal click
     ret

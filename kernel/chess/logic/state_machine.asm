@@ -69,16 +69,175 @@ the_chess_state_machine:
     
     ; clear the square the piece just left
     mov byte [rbx + rdx], EMPTY
+
+    ; consider castling
+    push rcx 
+
+    ; have we just castled?
+    ; there are 4 possible layouts after a castling is done
+    ; 1. WK @ G1, WRh @ F1
+    ; 2. WK @ C1, WRa @ D1
+    ; 3. BK @ G8, BRh @ F8
+    ; 4. BK @ C8, BRa @ D8
+    ; this is compatible with Chess960 too 
+    cmp cl, W_KING
+    je .check_WK_castle
+    cmp cl, B_KING
+    je .check_BK_castle
+    jmp .check_WK
+
+.check_WK_castle:
+    movzx r9, byte [rel WRh_start]
+    cmp r8b, r9b                     ; castling towards Rh (O-O)
+    je .wk_kingside
+    
+    movzx r9, byte [rel WRa_start]
+    cmp r8b, r9b                     ; castling towards Ra (O-O-O)
+    je .wk_queenside
+    
+    jmp .revoke_all_rights_w            
+    
+.wk_kingside:
+    ; clear wherever the king left from
+    mov byte [rbx + r8], EMPTY       
+    
+    ; king must be on G1
+    mov byte [rbx + 0x76], W_KING
+    
+    ; rook must be on F1
+    mov byte [rbx + 0x75], W_ROOK       
+    jmp .revoke_all_rights_w
+.wk_queenside:
+    mov byte[rbx + r8], EMPTY
+    mov byte[rbx + 0x72], W_KING
+    mov byte[rbx + 0x73], W_ROOK
+
+.revoke_all_rights_w:
+    mov byte [rel w_castle_k], 0
+    mov byte [rel w_castle_q], 0
+    jmp .is_capture
+
+.check_BK_castle:
+    movzx r9, byte [rel BRh_start]
+    cmp r8b, r9b                     ; castling towards Rh (O-O)
+    je .bk_kingside
+    
+    movzx r9, byte [rel BRa_start]
+    cmp r8b, r9b                     ; castling towards Ra (O-O-O)
+    je .bk_queenside
+    
+    jmp .revoke_all_rights_b           
+    
+.bk_kingside:
+    ; clear wherever the king left from
+    mov byte [rbx + r8], EMPTY       
+    
+    ; king must be on G8
+    mov byte [rbx + 0x06], W_KING
+    
+    ; rook must be on F8
+    mov byte [rbx + 0x05], W_ROOK       
+    jmp .revoke_all_rights_b
+
+.bk_queenside:
+    mov byte[rbx + r8], EMPTY
+    mov byte[rbx + 0x02], B_KING
+    mov byte[rbx + 0x03], B_ROOK
+
+.revoke_all_rights_b:
+    mov byte [rel b_castle_k], 0
+    mov byte [rel b_castle_q], 0
+    jmp .is_capture
+
+    ; check for rights violations
+    ; 12 possible castling-right-voiding scenarios:
+    ; - WK/BK moves
+    ; - WRa/BRa moves
+    ; - WRh/BRh moves
+    ; - any of the 4 rooks is captured
+    ; - B/W already castled
+
+    ; there are also temporary blocks:
+    ; - path occupied
+    ; - path under attack
+    ; - currently in check
+
+.check_WK:
+    mov cl, byte [rel WK_start]
+    cmp cl, dl
+    jne .check_WRa
+    ; it is, white can't castle
+    mov byte [rel w_castle_k], 0
+    mov byte [rel w_castle_q], 0
+    jmp .is_capture
+
+.check_WRa:
+    mov cl, byte [rel WRa_start]
+    cmp cl, dl
+    je .revoke_WQ
+    mov cl, byte [rel WRa_start]
+    cmp cl, dl
+    jne .check_WRh
+.revoke_WQ:
+    mov byte [rel w_castle_q], 0
+    jmp .is_capture
+
+.check_WRh:
+    mov cl, byte [rel WRh_start]
+    cmp cl, dl
+    je .revoke_WK
+    mov cl, byte [rel WRh_start]
+    cmp cl, dl
+    jne .check_BK
+.revoke_WK:
+    mov byte [rel w_castle_k], 0
+    jmp .is_capture
+
+.check_BK:
+    cmp rdx, 0x04 ; E8
+    jne .check_BRa
+    mov byte [rel b_castle_k], 0
+    mov byte [rel b_castle_q], 0
+    jmp .is_capture
+
+.check_BRa:
+    mov cl, byte [rel BRa_start]
+    cmp cl, dl
+    je .revoke_BQ
+    mov cl, byte [rel BRa_start]
+    cmp cl, dl
+    jne .check_BRh
+.revoke_BQ:
+    mov byte [rel b_castle_q], 0
+    jmp .is_capture
+
+.check_BRh:
+    mov cl, byte [rel BRh_start]
+    cmp cl, dl
+    je .revoke_BK
+    mov cl, byte [rel BRh_start]
+    cmp cl, dl
+    jne .is_capture
+
+.revoke_BK:
+    mov byte [rel b_castle_k], 0
+    jmp .is_capture
+
+
     
 .is_capture:
     ; a move is a capture 
     ; when the target square contains an enemy piece
+
+    pop rcx ; from castling 
+
     cmp r10b, 6
     jg .target_black
 .target_white:
     test r10b, r10b 
     jz .capture_check_done
     movzx r11, byte[rel current_color]
+    jmp .capture_check_done
 .target_black:
     cmp r10b, 12
     jg .invalid_capture
@@ -141,7 +300,7 @@ the_chess_state_machine:
     jmp .ep_check_done
 .is_ep:
     ; cl is computed square, clear it
-    LOG "This was an EP capture."
+    ; LOG "This was an EP capture."
     mov byte[rbx + rdx], EMPTY
     pop rdx
     pop rcx

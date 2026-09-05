@@ -28,12 +28,18 @@ COLOR_HIGHLIGHT equ 0x007FA650   ; g r e e n
 ; 0 = blank square
 ; 1-6 = white (PNBRQK in this order)
 ; 7-12 = black (PNBRQK in this order)
+; board:
+;     db 10,  8,  9, 11, 12,  9,  8, 10, 0, 0, 0, 0, 0, 0, 0, 0  ; black 
+;     db  7,  7,  7,  7,  7,  7,  7,  7, 0, 0, 0, 0, 0, 0, 0, 0  ;
+;     times 64 db 0 
+;     db  1,  1,  1,  1,  1,  1,  1,  1, 0, 0, 0, 0, 0, 0, 0, 0  ; 
+;     db  4,  2,  3,  5,  6,  3,  2,  4, 0, 0, 0, 0, 0, 0, 0, 0  ; white
 board:
-    db 10,  8,  9, 11, 12,  9,  8, 10, 0, 0, 0, 0, 0, 0, 0, 0  ; black 
-    db  7,  7,  7,  7,  7,  7,  7,  7, 0, 0, 0, 0, 0, 0, 0, 0  ;
-    times 64 db 0 
-    db  1,  1,  1,  1,  1,  1,  1,  1, 0, 0, 0, 0, 0, 0, 0, 0  ; 
-    db  4,  2,  3,  5,  6,  3,  2,  4, 0, 0, 0, 0, 0, 0, 0, 0  ; white
+    db 9, 11, 8, 8, 10, 12, 10, 9, 0, 0, 0, 0, 0, 0, 0, 0
+    db 7, 7, 7, 7, 7, 7, 7, 7, 0, 0, 0, 0, 0, 0, 0, 0
+    times 64 db 0
+    db 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0
+    db 3, 5, 2, 2, 4, 6, 4, 3, 0, 0, 0, 0, 0, 0, 0, 0
 
 sandbox_board: times 128 db 0 ; for actual move detection
 
@@ -81,3 +87,30 @@ valid_moves_count db 0
 valid_moves_list  times 27 db 0 ; 27 is exactly enough, check for yourself!
 current_color db 0 ; 0 is white
 selected_square db 0xff
+
+; castling
+; 4 possible castlings, keeping track of all of them
+; 1 = allowed, 0 = illegal
+w_castle_k db 1      ; white O-O
+w_castle_q db 1      ; white O-O-O
+b_castle_k db 1      ; black O-O
+b_castle_q db 1      ; black O-O-O
+
+; starting positions
+; this will be important if Chess960 ever becomes a concern
+; default to Chess960 position 518
+; (the exact same as in regular chess)
+; WK_start db 0x74
+; WRa_start db 0x70
+; WRh_start db 0x77
+
+; BK_start db 0x04
+; BRa_start db 0x00
+; BRh_start db 0x07
+WK_start db 0x75
+WRa_start db 0x74
+WRh_start db 0x76
+
+BK_start db 0x05
+BRa_start db 0x04
+BRh_start db 0x06

@@ -86,7 +86,7 @@ _draw_chessboard:
 ; Iterates through valid_moves_list and renders a green highlight for each.
 ; ------------------------------------------------------------------------------
 _draw_valid_moves:
-    LOG "Drawing valid moves."
+    ; LOG "Drawing valid moves."
     push rbp
     mov rbp, rsp
     push rbx

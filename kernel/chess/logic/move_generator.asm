@@ -72,6 +72,7 @@ generate_moves_for_square:
     jmp .offset_loop
 
 .handle_king:
+    call check_castling
     mov rcx, 8
     lea rsi, [rel king_offsets]
     ; vvv falling vvv
@@ -109,3 +110,4 @@ generate_moves_for_square:
     pop rbx
     pop rbp
     ret
+

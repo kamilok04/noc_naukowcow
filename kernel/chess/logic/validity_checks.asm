@@ -129,7 +129,7 @@ check_white_pawn:
     test bl, bl
     jnz .check_captures       ; If occupied, skip forward moves
     
-    LOG "Valid Single Push at %x -> %x", r8, rax
+    ; LOG "Valid Single Push at %x -> %x", r8, rax
     push rax
     call add_valid_move
     pop rax
@@ -186,7 +186,7 @@ check_white_pawn:
     jmp .capture_left
 
 .ep_right_valid:
-    LOG "Valid EP Capture Right at %x -> %x", r8, rax
+    ; LOG "Valid EP Capture Right at %x -> %x", r8, rax
     push rax
     call add_valid_move
     pop rax
@@ -197,7 +197,7 @@ check_white_pawn:
     call is_on_board    ; LOG "Valid Capture Left at %x -> %x",r8, rax
     jnz .done                ; out of bounds
 
-    LOG "Checking %x for capture", rax
+    ; LOG "Checking %x for capture", rax
     cmp al, byte [rel en_passant_target]
     je .ep_left_valid
 

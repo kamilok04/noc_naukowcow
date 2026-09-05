@@ -240,7 +240,6 @@ is_square_attacked:
     dec rdx
     jnz .diag_dir_loop
 
-
     ; kings touching is also an illegal scenario.]
 .check_enemy_king:
     mov al, byte [rel current_color]
@@ -276,7 +275,7 @@ is_square_attacked:
     jmp .exit
 
 .is_attacked:
-    LOG "sb: sqr atk!"
+    ; LOG "sb: sqr atk!"
     mov rax, 1           
 
 .exit:

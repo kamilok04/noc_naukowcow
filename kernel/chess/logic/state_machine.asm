@@ -74,87 +74,69 @@ the_chess_state_machine:
 
 
 .castling_and_rights:
+    push rcx                       
 
-  
-
-    ; consider castling
-    push rcx 
-
-    ; have we just castled?
-    ; there are 4 possible layouts after a castling is done
-    ; 1. WK @ G1, WRh @ F1
-    ; 2. WK @ C1, WRa @ D1
-    ; 3. BK @ G8, BRh @ F8
-    ; 4. BK @ C8, BRa @ D8
-    ; this is compatible with Chess960 too 
     cmp cl, W_KING
-    je .check_WK_castle
+    je .handle_white_king
     cmp cl, B_KING
-    je .check_BK_castle
-    jmp .check_WK
+    je .handle_black_king
+    
+    ; not a king
+    jmp .check_rook_violations       
 
-.check_WK_castle:
-    movzx r9, byte [rel WRh_start]
-    cmp r8b, r9b                     ; castling towards Rh (O-O)
+.handle_white_king:
+    cmp r8b, 0x76                    ; WK -> G1?
     je .wk_kingside
-    
-    movzx r9, byte [rel WRa_start]
-    cmp r8b, r9b                     ; castling towards Ra (O-O-O)
+    cmp r8b, 0x72                    ; WK -> C1?
     je .wk_queenside
-    
-    jmp .revoke_all_rights_w            
-    
+    jmp .revoke_all_rights_w         ; regular WK move
+
 .wk_kingside:
-    ; clear wherever the king left from
-    mov byte [rbx + r8], EMPTY       
-    
-    ; king must be on G1
-    mov byte [rbx + 0x76], W_KING
-    
-    ; rook must be on F1
-    mov byte [rbx + 0x75], W_ROOK       
+    movzx r9, byte [rel WRh_start]
+    mov byte [rbx + r9], EMPTY       ; clear WRh starting square
+    mov byte [rbx + 0x75], W_ROOK    ; WRh -> F1
+    mov byte [rbx + 0x76], W_KING    ; WK -> G1 (Chess960 edge case)
     jmp .revoke_all_rights_w
+
 .wk_queenside:
-    mov byte[rbx + r8], EMPTY
-    mov byte[rbx + 0x72], W_KING
-    mov byte[rbx + 0x73], W_ROOK
+    movzx r9, byte [rel WRa_start]
+    mov byte [rbx + r9], EMPTY
+    mov byte [rbx + 0x73], W_ROOK    ; WRa -> D1
+    mov byte [rbx + 0x72], W_KING    ; WK -> C1
+    jmp .revoke_all_rights_w
 
 .revoke_all_rights_w:
     mov byte [rel w_castle_k], 0
     mov byte [rel w_castle_q], 0
     jmp .is_capture
 
-.check_BK_castle:
-    movzx r9, byte [rel BRh_start]
-    cmp r8b, r9b                     ; castling towards Rh (O-O)
+.handle_black_king:
+    cmp r8b, 0x06                    ; BK -> G8?
     je .bk_kingside
-    
-    movzx r9, byte [rel BRa_start]
-    cmp r8b, r9b                     ; castling towards Ra (O-O-O)
+    cmp r8b, 0x02                    ; BK -> C8?
     je .bk_queenside
-    
-    jmp .revoke_all_rights_b           
-    
+    jmp .revoke_all_rights_b
+
 .bk_kingside:
-    ; clear wherever the king left from
-    mov byte [rbx + r8], EMPTY       
-    
-    ; king must be on G8
-    mov byte [rbx + 0x06], W_KING
-    
-    ; rook must be on F8
-    mov byte [rbx + 0x05], W_ROOK       
+    movzx r9, byte [rel BRh_start]
+    mov byte [rbx + r9], EMPTY
+    mov byte [rbx + 0x05], B_ROOK    ; BRh -> F8
+    mov byte [rbx + 0x06], B_KING    ; BK -> G8
     jmp .revoke_all_rights_b
 
 .bk_queenside:
-    mov byte[rbx + r8], EMPTY
-    mov byte[rbx + 0x02], B_KING
-    mov byte[rbx + 0x03], B_ROOK
+    movzx r9, byte [rel BRa_start]
+    mov byte [rbx + r9], EMPTY
+    mov byte [rbx + 0x03], B_ROOK    ; BRa -> D8
+    mov byte [rbx + 0x02], B_KING    ; BK -> C8
+    jmp .revoke_all_rights_b
 
 .revoke_all_rights_b:
     mov byte [rel b_castle_k], 0
     mov byte [rel b_castle_q], 0
     jmp .is_capture
+
+.check_rook_violations:
 
     ; check for rights violations
     ; 12 possible castling-right-voiding scenarios:
@@ -169,67 +151,45 @@ the_chess_state_machine:
     ; - path under attack
     ; - currently in check
 
-.check_WK:
-    mov cl, byte [rel WK_start]
-    cmp cl, dl
-    jne .check_WRa
-    ; it is, white can't castle
-    mov byte [rel w_castle_k], 0
-    mov byte [rel w_castle_q], 0
-    jmp .is_capture
-
-.check_WRa:
-    mov cl, byte [rel WRa_start]
-    cmp cl, dl
+    cmp dl, byte [rel WRa_start]     ; did WRa move?
     je .revoke_WQ
-    mov cl, byte [rel WRa_start]
-    cmp cl, dl
-    jne .check_WRh
+    cmp r8b, byte [rel WRa_start]    ; was WRa captured?
+    je .revoke_WQ
+    jmp .check_WRh
+
 .revoke_WQ:
     mov byte [rel w_castle_q], 0
-    jmp .is_capture
 
 .check_WRh:
-    mov cl, byte [rel WRh_start]
-    cmp cl, dl
+    cmp dl, byte [rel WRh_start]
     je .revoke_WK
-    mov cl, byte [rel WRh_start]
-    cmp cl, dl
-    jne .check_BK
+    cmp r8b, byte [rel WRh_start]
+    je .revoke_WK
+    jmp .check_BRa
+
 .revoke_WK:
     mov byte [rel w_castle_k], 0
-    jmp .is_capture
-
-.check_BK:
-    cmp rdx, 0x04 ; E8
-    jne .check_BRa
-    mov byte [rel b_castle_k], 0
-    mov byte [rel b_castle_q], 0
-    jmp .is_capture
 
 .check_BRa:
-    mov cl, byte [rel BRa_start]
-    cmp cl, dl
+    cmp dl, byte [rel BRa_start]
     je .revoke_BQ
-    mov cl, byte [rel BRa_start]
-    cmp cl, dl
-    jne .check_BRh
+    cmp r8b, byte [rel BRa_start]
+    je .revoke_BQ
+    jmp .check_BRh
+
 .revoke_BQ:
     mov byte [rel b_castle_q], 0
-    jmp .is_capture
 
 .check_BRh:
-    mov cl, byte [rel BRh_start]
-    cmp cl, dl
+    cmp dl, byte [rel BRh_start]
     je .revoke_BK
-    mov cl, byte [rel BRh_start]
-    cmp cl, dl
-    jne .is_capture
+    cmp r8b, byte [rel BRh_start]
+    je .revoke_BK
+    jmp .is_capture
 
 .revoke_BK:
     mov byte [rel b_castle_k], 0
     jmp .is_capture
-
 
     
 .is_capture:
@@ -297,59 +257,37 @@ the_chess_state_machine:
     mov byte [rel selected_square], 0xFF
     mov byte [rel valid_moves_count], 0
 
-    ; update the EP target
-    ; if it was a double push, EP_target = skipped square
-    ; else EP_target = null
-
-    ; double push happens when:
-    ; - the moved piece is a pawn
-    ; - the source is the destination +/- 0x20 (color-relative)
-    ; then, EP_target is the source/destination +/- 0x10
+    ; only a double push can set the EP
     cmp cl, W_PAWN
-    jne .check_black_ep
-.white_pawn_set_ep:
-    push rcx
-    mov rcx, r8
-    add rcx, 0x20
-    cmp rcx, rdx
-    jne .clear_ep
-    sub rcx, 0x10
-    ; EP target after a white move
-    ; must be 0x50-0x57
-    cmp rcx, 0x50
-    jl .clear_ep
-    cmp rcx, 0x57
-    jg .clear_ep
-    LOG "EP set to %x", rcx
-    mov byte [rel en_passant_target], cl
-    jmp promotion_interrupt_resolved.change_color
-
-.check_black_ep:
+    je .check_white_double_push
     cmp cl, B_PAWN
-    jne promotion_interrupt_resolved.change_color
-.black_pawn_set_ep:
-    push rcx
-    mov rcx, r8
-    sub rcx, 0x20
-    cmp rcx, rdx
+    je .check_black_double_push
+    jmp .clear_ep                    ; any non-pawn move MUST clear the EP target
+
+.check_white_double_push:
+    mov rax, r8                      ; copy target square
+    add rax, 0x20
+    cmp rax, rdx                     ; target + 0x20 == source?
+    jne .clear_ep                    ; if not, clear the EP
+    
+    mov rax, r8
+    add rax, 0x10
+    mov byte [rel en_passant_target], al
+    jmp .check_for_promotion         ; don't clear EP target, is was just set
+
+.check_black_double_push:
+    mov rax, r8
+    sub rax, 0x20
+    cmp rax, rdx                     ; target - 0x20 == source?
     jne .clear_ep
-    add rcx, 0x10
-    ; EP target after a black pawn move
-    ; must be 0x20-0x27
-    cmp cl, 0x20
-    jl .clear_ep
-    cmp cl, 0x27
-    jg .clear_ep
-    ; LOG "EP set to %x", rcx
-    mov byte [rel en_passant_target], cl
     
-    jmp promotion_interrupt_resolved.change_color
-    
+    mov rax, r8
+    sub rax, 0x10
+    mov byte [rel en_passant_target], al
+    jmp .check_for_promotion        
 
 .clear_ep:
-    pop rcx
-    mov byte[rel en_passant_target], 0xff
-    jmp .check_for_promotion         
+    mov byte [rel en_passant_target], 0xFF 
 
 .check_for_promotion:
     cmp cl, 1                        ; White Pawn?
@@ -386,17 +324,15 @@ promotion_interrupt_resolved:
     push r10
     push r11
 
-  ; failsafe: logic should have been unpaused by now
-    test byte[rel promotion_pending], 0 
-    jne .invalid_processing
-.invalid_processing:
-    LOG "State machine is running without permission!!"
-    ; fall through?
 
 
 .change_color:
     ; flip the color byte
     xor byte [rel current_color], 1
+
+.update_game_state:
+    call update_match_state
+
     jmp .done
 
 

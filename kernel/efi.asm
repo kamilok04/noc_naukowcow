@@ -168,6 +168,8 @@ efi_main:
     
     LOG "Initializing the game."
     call render_playfield
+
+    call update_match_state
     
     call swap_buffers
     
@@ -259,6 +261,8 @@ efi_main:
     movzx rdx, dword [rel mouse_y]
     call push_cursor_region
 
+
+
     jmp .main_loop
 
 .error_allocation:
@@ -300,6 +304,9 @@ efi_main:
 %include "king_safety.asm"
 %include "check_castling.asm"
 %include "promotion_handler.asm"
+%include "update_match_state.asm"
+%include "draw_endgame_popup.asm"
+%include "reset_game.asm"
 
 ; Pad .text to 8KB
 align 8192, db 0

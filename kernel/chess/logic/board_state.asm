@@ -29,18 +29,18 @@ COLOR_PROMOTION equ 0x00D3D3D3   ; grey
 ; 0 = blank square
 ; 1-6 = white (PNBRQK in this order)
 ; 7-12 = black (PNBRQK in this order)
-; board:
-;     db 10,  8,  9, 11, 12,  9,  8, 10, 0, 0, 0, 0, 0, 0, 0, 0  ; black 
-;     db  7,  7,  7,  7,  7,  7,  7,  7, 0, 0, 0, 0, 0, 0, 0, 0  ;
-;     times 64 db 0 
-;     db  1,  1,  1,  1,  1,  1,  1,  1, 0, 0, 0, 0, 0, 0, 0, 0  ; 
-;     db  4,  2,  3,  5,  6,  3,  2,  4, 0, 0, 0, 0, 0, 0, 0, 0  ; white
 board:
-    db 9, 11, 8, 8, 10, 12, 10, 9, 0, 0, 0, 0, 0, 0, 0, 0
-    db 7, 7, 7, 7, 7, 7, 7, 7, 0, 0, 0, 0, 0, 0, 0, 0
-    times 64 db 0
-    db 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0
-    db 3, 5, 2, 2, 4, 6, 4, 3, 0, 0, 0, 0, 0, 0, 0, 0
+    db 10,  8,  9, 11, 12,  9,  8, 10, 0, 0, 0, 0, 0, 0, 0, 0  ; black 
+    db  7,  7,  7,  7,  7,  7,  7,  7, 0, 0, 0, 0, 0, 0, 0, 0  ;
+    times 64 db 0 
+    db  1,  1,  1,  1,  1,  1,  1,  1, 0, 0, 0, 0, 0, 0, 0, 0  ; 
+    db  4,  2,  3,  5,  6,  3,  2,  4, 0, 0, 0, 0, 0, 0, 0, 0  ; white
+; board:
+;     db 9, 11, 8, 8, 10, 12, 10, 9, 0, 0, 0, 0, 0, 0, 0, 0
+;     db 7, 7, 7, 7, 7, 7, 7, 7, 0, 0, 0, 0, 0, 0, 0, 0
+;     times 64 db 0
+;     db 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0
+;     db 3, 5, 2, 2, 4, 6, 4, 3, 0, 0, 0, 0, 0, 0, 0, 0
 
 sandbox_board: times 128 db 0 ; for actual move detection
 
@@ -101,20 +101,20 @@ b_castle_q db 1      ; black O-O-O
 ; this will be important if Chess960 ever becomes a concern
 ; default to Chess960 position 518
 ; (the exact same as in regular chess)
-; WK_start db 0x74
-; WRa_start db 0x70
-; WRh_start db 0x77
+WK_start db 0x74
+WRa_start db 0x70
+WRh_start db 0x77
 
-; BK_start db 0x04
-; BRa_start db 0x00
-; BRh_start db 0x07
-WK_start db 0x75
-WRa_start db 0x74
-WRh_start db 0x76
+BK_start db 0x04
+BRa_start db 0x00
+BRh_start db 0x07
+; WK_start db 0x75
+; WRa_start db 0x74
+; WRh_start db 0x76
 
-BK_start db 0x05
-BRa_start db 0x04
-BRh_start db 0x06
+; BK_start db 0x05
+; BRa_start db 0x04
+; BRh_start db 0x06
 
 ; promotion logic
 promotion_pending db 0       ; 1 when waiting for user input
@@ -123,3 +123,29 @@ promotion_sq      db 0       ; index of a square to promote into
 ; QRBN
 promotion_lookup_w db 5, 4, 3, 2
 promotion_lookup_b db 11, 10, 9, 8
+
+; general game state
+; 0 = active, 1 = white wins, 2 = black wins, 3 = stalemate
+match_state db 0
+
+; endgame GUI
+POPUP_W         equ 300
+POPUP_H         equ 200
+POPUP_X         equ BOARD_START_X + (4 * SQUARE_SIZE) - (POPUP_W / 2)
+POPUP_Y         equ BOARD_START_Y + (4 * SQUARE_SIZE) - (POPUP_H / 2)
+
+BTN_W           equ 140
+BTN_H           equ 50
+BTN_X           equ POPUP_X + (POPUP_W / 2) - (BTN_W / 2)
+BTN_Y           equ POPUP_Y + 120
+
+COLOR_POPUP_BG  equ 0x00222222   ; Dark Slate
+COLOR_BTN_BG    equ 0x0055AA55   ; Restart Button Green
+
+; --- PRISTINE BOARD STATE ---
+initial_board:
+    db 10,  8,  9, 11, 12,  9,  8, 10, 0, 0, 0, 0, 0, 0, 0, 0  ; black 
+    db  7,  7,  7,  7,  7,  7,  7,  7, 0, 0, 0, 0, 0, 0, 0, 0  ;
+    times 64 db 0 
+    db  1,  1,  1,  1,  1,  1,  1,  1, 0, 0, 0, 0, 0, 0, 0, 0  ; 
+    db  4,  2,  3,  5,  6,  3,  2,  4, 0, 0, 0, 0, 0, 0, 0, 0  ; white

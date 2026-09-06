@@ -11,10 +11,10 @@ verify_king_safety:
 
     ; which king?
     mov dl, byte [rel current_color] 
-    mov cl, 6                        ; white
+    mov cl, W_KING                        ; white
     test dl, dl
     jz .find_king
-    mov cl, 12                       ; black
+    mov cl, B_KING                      ; black
 
 .find_king:
     xor r8, r8                       ; R8 = current square
@@ -38,7 +38,7 @@ verify_king_safety:
     jmp .done
 
 .king_found:
-    LOG "Checking king safety."
+    ; LOG "Checking king safety."
     call is_square_attacked          
     xor rax, 1                     ; attacked = !safe
 
@@ -78,6 +78,7 @@ is_square_attacked:
     jmp .check_knights
 
 .enemy_is_white:
+
     mov r10b, 1          ; wpawn
     mov cl, 2            ; wknight
 
@@ -155,12 +156,12 @@ is_square_attacked:
     jnz .ortho_enemy_is_white
     
 .ortho_enemy_is_black:
-    mov cl, 10               ; brook
-    mov r11b, 11              ; bqueen
+    mov cl, B_ROOK
+    mov r11b, B_QUEEN
     jmp .ortho_loop_setup
 .ortho_enemy_is_white:
-    mov cl, 4                ; wrook
-    mov r11b, 5               ; wqueen
+    mov cl, W_ROOK
+    mov r11b, W_QUEEN
 
 .ortho_loop_setup:
     mov rdx, 4               ; 4 directions (po polsku 2 kierunki :)) 
@@ -173,7 +174,7 @@ is_square_attacked:
     add rax, r9              ; step
     test rax, 0x88
     jnz .next_ortho_dir      ; OOB, done
-    
+
     lea rbx, [rel sandbox_board]
     mov r10b, byte [rbx + rax]
     test r10b, r10b
@@ -204,12 +205,12 @@ is_square_attacked:
     jnz .diag_enemy_is_white
     
 .diag_enemy_is_black:
-    mov cl, 9                ; bbishop
-    mov r11b, 11               ; bqueen
+    mov cl, B_BISHOP               ;
+    mov r11b, B_QUEEN            
     jmp .diag_loop_setup
 .diag_enemy_is_white:
-    mov cl, 3                ; wbishop
-    mov r11b, 5                ; wqueen
+    mov cl, W_BISHOP
+    mov r11b, W_QUEEN
 
 .diag_loop_setup:
     mov rdx, 4               
@@ -222,7 +223,8 @@ is_square_attacked:
     add rax, r9
     test rax, 0x88
     jnz .next_diag_dir
-    
+    ; LOG "sq %x", rax
+
     lea rbx, [rel sandbox_board]
     mov r10b, byte [rbx + rax]
     test r10b, r10b
@@ -240,16 +242,16 @@ is_square_attacked:
     dec rdx
     jnz .diag_dir_loop
 
-    ; kings touching is also an illegal scenario.]
+    ; kings touching is also an illegal scenario.
 .check_enemy_king:
     mov al, byte [rel current_color]
     test al, al
     jnz .king_enemy_is_white
 .king_enemy_is_black:
-    mov cl, 12               ; bking
+    mov cl, B_KING              ; bking
     jmp .king_loop_setup
 .king_enemy_is_white:
-    mov cl, 6                ; wking (occasionally pking :))
+    mov cl, W_KING                ; wking (occasionally pking :))
 
 .king_loop_setup:
     mov rdx, 8               ; 8 directions

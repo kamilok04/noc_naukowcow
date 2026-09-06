@@ -8,6 +8,7 @@ generate_moves_for_square:
     mov rbp, rsp
     push rbx
     push rcx
+    xor rcx, rcx
     push rsi
     push r9
     
@@ -18,7 +19,7 @@ generate_moves_for_square:
     lea rbx, [rel board]
     movzx rax, byte [rbx + r8]
     test rax, rax
-    jz .done                 ; This should not happen 
+    jz .done                 
     
     ; normalize IDs
     mov cl, al
@@ -27,6 +28,7 @@ generate_moves_for_square:
     sub cl, 6              ; whiten a black piece temporarily
     ; CL now holds the piece type: 1=P, 2=N, 3=B, 4=R, 5=Q, 6=K
 .is_white:
+    ; LOG "Dispatching for piece ID %d, (normalized %d)", rax, rcx
     ; dispatch
     cmp cl, 1
     je .handle_pawn

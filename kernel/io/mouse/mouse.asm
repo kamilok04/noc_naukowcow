@@ -24,7 +24,7 @@ init_mouse:
     call [rbx + EFI_BOOT_SERVICES.LocateHandleBuffer]                     ; 
     test rax, rax
     jnz .error
-    LOG "%d mouse protocols located.", [rel handle_count]
+    ; LOG "%d mouse protocols located.", [rel handle_count]
 
     ; get the last mouse ptr handle because VMs do stupid stuff sometimes
     mov rax, [rel handle_count]
@@ -149,8 +149,27 @@ handle_mouse_click:
 
     mov r10, rcx        ; keep the mouse coords
     mov r11, r8         
+
     ; LOG "Mouse Y = %d", r8
+    cmp byte [rel match_state], 0
+    je .game_is_active
     
+    ; check if the click is inside the restart button
+    cmp rcx, BTN_X
+    jl .done                      ; too far left
+    cmp rcx, BTN_X + BTN_W
+    jge .done                     ; too far right
+    
+    cmp r8, BTN_Y
+    jl .done                      ; too far above
+    cmp r8, BTN_Y + BTN_H
+    jge .done                     ; too far below
+    
+    call reset_game               ; ok; restart
+    jmp .done                     ; block all else, the game is done
+
+    
+.game_is_active:
     mov rdx, r11 
     call check_promotion_click
     test rax, rax

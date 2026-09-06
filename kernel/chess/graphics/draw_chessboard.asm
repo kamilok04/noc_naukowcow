@@ -13,7 +13,8 @@ render_playfield:
     call _draw_chessboard
     call _draw_valid_moves
     call _draw_pieces
-    call draw_promotion_menu
+    call _draw_promotion_menu
+    call draw_endgame_popup
 
     mov rsp, rbp
     pop rbp
@@ -202,10 +203,10 @@ _draw_pieces:
     ret
 
 ; ------------------------------------------------------------------------------
-; draw_promotion_menu
+; _draw_promotion_menu
 ; Overlays the promotion menu onto the linear backbuffer.
 ; ------------------------------------------------------------------------------
-draw_promotion_menu:
+_draw_promotion_menu:
     push rbp
     mov rbp, rsp
     push rax

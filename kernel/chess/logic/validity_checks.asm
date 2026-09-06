@@ -117,7 +117,7 @@ check_steps:
 ; ------------------------------------------------------------------------------
 check_white_pawn:
     ; Assume R8 is the pawn's current 0x88 index
-    
+    ; LOG "Checking a white pawn."
     ; 1. single move forward
     mov rax, r8
     sub rax, 0x10
@@ -236,6 +236,7 @@ check_white_pawn:
 ; R8 =  board position of the pawn
 ; ------------------------------------------------------------------------------
 check_black_pawn:
+    ;LOG "Checking a black pawn."
         mov rax, r8
     add rax, 0x10
     call is_on_board

@@ -65,34 +65,39 @@ _draw_bg:
 _draw_chessboard:
     push rbp
     mov rbp, rsp
-    push r12            ; R12 = square index (0-0x77)
+    push r12
+    push r13
+    push r14
+    push r15
+
+    mov r13d, dword [rel tile_size]
+    mov r14d, dword [rel board_x]
+    mov r15d, dword [rel board_y]
     
     xor r12, r12
 .square_loop:
-    cmp r12, 0x78       ; 0x77 is the last valid square on the board
+    cmp r12, 0x78
     jge .done
-
     test r12, 0x88      
-    jnz .next_square    ; out of bounds
+    jnz .next_square
 
     mov rax, r12
-    shr rax, 4          ; row = index/16
-    
+    shr rax, 4                   ; row = index/16
     mov rdx, r12
-    and rdx, 7          ; col = index%7
+    and rdx, 7                   ; col = index&7 == index%8
     
-    ; get screen coords
+    ; get dynamic screen coords
     mov rcx, rdx
-    imul rcx, SQUARE_SIZE
-    add rcx, BOARD_START_X       ; rcx = screen x
+    imul rcx, r13                ; col * tile_size
+    add rcx, r14                 ; + board_x
     
     mov r8, rax
-    imul r8, SQUARE_SIZE
-    add r8, BOARD_START_Y        ; r8 = screen y
+    imul r8, r13                 ; row * tile_size
+    add r8, r15                  ; + board_y
     
     mov r9, rax
     add r9, rdx
-    and r9, 1                    ; 0 = white, 1 = black
+    and r9, 1                    
     
     mov r10d, COLOR_LIGHT
     test r9, r9
@@ -104,9 +109,9 @@ _draw_chessboard:
     push r8
     mov rdi, [rel backbuffer_ptr]
     mov rsi, [rel framebuffer_pitch]
-    mov rdx, r8                  ; top padding of the whole board
-    mov r8, SQUARE_SIZE          ; width
-    mov r9, SQUARE_SIZE          ; height
+    mov rdx, r8                  
+    mov r8, r13                  ; width = tile_size
+    mov r9, r13                  ; height = tile_size
     call draw_rectangle          
     pop r8
     pop rcx         
@@ -116,6 +121,9 @@ _draw_chessboard:
     jmp _draw_chessboard.square_loop
 
 .done:
+    pop r15
+    pop r14
+    pop r13
     pop r12
     mov rsp, rbp
     pop rbp
@@ -126,7 +134,6 @@ _draw_chessboard:
 ; Iterates through valid_moves_list and renders a green highlight for each.
 ; ------------------------------------------------------------------------------
 _draw_valid_moves:
-    ; LOG "Drawing valid moves."
     push rbp
     mov rbp, rsp
     push rbx
@@ -134,46 +141,53 @@ _draw_valid_moves:
     push rdx
     push rsi
     push rdi
+    push r13
+    push r14
+    push r15
 
     movzx rcx, byte [rel valid_moves_count]
     test rcx, rcx
-    jz .done                         ; if no valid moves, exit
+    jz .done
 
+    mov r13d, dword [rel tile_size]
+    mov r14d, dword [rel board_x]
+    mov r15d, dword [rel board_y]
     lea rsi, [rel valid_moves_list]
 
 .highlight_loop:
-    movzx eax, byte [rsi + rcx - 1]  ; suqare index
+    movzx eax, byte [rsi + rcx - 1]
 
     mov rbx, rax
     and rbx, 7                       
-    imul rbx, SQUARE_SIZE
-    add rbx, BOARD_START_X           ; RBX = screen x
+    imul rbx, r13                    ; col * tile_size
+    add rbx, r14                     ; + board_x
 
     mov rdx, rax
-    shr rdx, 4                       ; row
-    imul rdx, SQUARE_SIZE
-    add rdx, BOARD_START_Y           ; RDX = screen y
+    shr rdx, 4                       
+    imul rdx, r13                    ; row * tile_size
+    add rdx, r15                     ; + board_y
 
-    push rcx                         ; save the iteration counter
-    push rsi                         ; and array pointer
+    push rcx                         
+    push rsi                         
     
     mov rdi, [rel backbuffer_ptr]
     mov rsi, [rel framebuffer_pitch]
     mov rcx, rbx                     
-    ; RDX is already screen y
-    mov r8, SQUARE_SIZE              ; wdt
-    mov r9, SQUARE_SIZE              ; hgt
+    mov r8, r13                      ; wdt = tile_size
+    mov r9, r13                      ; hgt = tile_size
     mov r10d, COLOR_HIGHLIGHT        
     
     call draw_rectangle
     
     pop rsi
     pop rcx                          
-
     dec rcx
     jnz .highlight_loop
 
 .done:
+    pop r15
+    pop r14
+    pop r13
     pop rdi
     pop rsi
     pop rdx
@@ -191,6 +205,8 @@ _draw_pieces:
     push rbp
     mov rbp, rsp
     push r12            ; R12 = square index (0-0x77)
+    push r8
+    push r9
     xor r12, r12
     
     .square_loop:
@@ -207,13 +223,16 @@ _draw_pieces:
     and rdx, 7          ; col = index%7
     
     ; get screen coords
+    mov r8d, dword [rel tile_size]
+    mov r9d, dword [rel board_x]
     mov rcx, rdx
-    imul rcx, SQUARE_SIZE
-    add rcx, BOARD_START_X       ; rcx = screen x
+    imul rcx, r8
+    add rcx, r9       ; rcx = screen x
     
+    mov r9d, dword [rel board_y]
+    imul rax, r8
     mov r8, rax
-    imul r8, SQUARE_SIZE
-    add r8, BOARD_START_Y        ; r8 = screen y
+    add r8, r9        ; r8 = screen y
     
     lea rbx, [rel board]
     movzx r9, byte [rbx + r12]   ; yank straight outta the board
@@ -228,13 +247,15 @@ _draw_pieces:
     mov rsi, [rel framebuffer_pitch]
     mov rdx, r8                  
     mov r8, r10                  
-    call draw_bitmap             
+    call draw_bitmap_scaled       
     
 .next_square:
     inc r12
     jmp _draw_pieces.square_loop
 
 .done:
+    pop r9
+    pop r8
     pop r12
     mov rsp, rbp
     pop rbp
@@ -264,17 +285,21 @@ _draw_promotion_menu:
     ; is there actually a promotion happening?
     cmp byte [rel promotion_pending], 1
     jne .done
+cmp byte [rel promotion_pending], 1
+    jne .done
+
+    mov r10d, dword [rel tile_size]  ; dynamic size
 
     ; get coords
     movzx rax, byte [rel promotion_sq]
     mov rcx, rax
     and rcx, 0x0F
-    imul rcx, SQUARE_SIZE
-    add rcx, BOARD_START_X           ; RCX = screen c
+    imul rcx, r10
+    add ecx, dword [rel board_x]     ; RCX = screen x
 
     shr rax, 4
-    imul rax, SQUARE_SIZE
-    add rax, BOARD_START_Y           ; RAX = screen y
+    imul rax, r10
+    add eax, dword [rel board_y]     ; RAX = screen y
     
     mov r12, rcx                     ; R12 = copy of X
     mov r13, rax                     ; R13 = copy of Y
@@ -284,31 +309,33 @@ _draw_promotion_menu:
     mov rsi, [rel framebuffer_pitch]
     mov rcx, r12                    
     
-    ; dwtermine background Y 
-    ; (white goes down, black goes up)
     mov rdx, r13                     ; starting y
     cmp byte [rel current_color], 0
     je .draw_bg
-    sub rdx, SQUARE_SIZE * 3
+    
+    mov r11, r10
+    imul r11, 3                      ; tile_size * 3
+    sub rdx, r11                     ; white goes down, black goes up
+
 .draw_bg:
-    mov r8, SQUARE_SIZE              ; width = 1 tile
-    mov r9, SQUARE_SIZE * 4          ; height = 4 tiles
+    mov r8, r10                      ; width = 1 tile
+    mov r9, r10
+    imul r9, 4                       ; height = 4 tiles
     mov r10d, COLOR_PROMOTION        
     call draw_rectangle
 
     mov r14, 4                    
+    mov r11d, dword [rel tile_size]  ; step size
     
     cmp byte [rel current_color], 0
     jne .setup_black_sprites
     
 .setup_white_sprites:
     lea rbx, [rel promotion_lookup_w]
-    mov r11, SQUARE_SIZE             ; step down (+)
     jmp .draw_sprites_loop
 
 .setup_black_sprites:
     lea rbx, [rel promotion_lookup_b]
-    mov r11, SQUARE_SIZE
     neg r11                          ; step up (-)
 
 .draw_sprites_loop:
@@ -349,4 +376,113 @@ _draw_promotion_menu:
     pop rax
     mov rsp, rbp
     pop rbp
+    ret
+
+; ------------------------------------------------------------------------------
+; calculate_board_layout
+; Computes dynamic tile sizes and offsets to center the board on the left half.
+; ------------------------------------------------------------------------------
+calculate_board_layout:
+    push rax
+    push rbx
+    push rcx
+    push rdx
+
+    ; pick what will limit the size: min(Width / 2, Height)
+    mov eax, dword [rel screen_w]
+    shr eax, 1                       ; half
+    mov ebx, dword [rel screen_h]
+    
+    cmp eax, ebx
+    jl .width_is_limit               
+    mov eax, ebx                     
+.width_is_limit:
+
+    ; pad
+    sub eax, 32
+
+
+    shr eax, 3                       ; 8 tiles of width must fit
+    mov dword [rel tile_size], eax   ; save the size
+    
+    shl eax, 3                       ; avoid gaps
+
+    ; center the board horizontally within the screen's left half
+    mov ecx, dword [rel screen_w]
+    shr ecx, 1                      
+    sub ecx, eax                    
+    shr ecx, 1                      
+    mov dword [rel board_x], ecx    
+    
+    ; center vertically
+    mov ecx, dword [rel screen_h]
+    sub ecx, eax
+    shr ecx, 1
+    mov dword [rel board_y], ecx 
+    
+    mov eax, dword [rel tile_size]
+    
+    ; popup_w = 4 * tile_size
+    mov ecx, eax
+    shl ecx, 2
+    mov dword [rel popup_w], ecx
+    
+    ; popup_h = 2 * tile_size
+    mov ecx, eax
+    shl ecx, 1
+    mov dword [rel popup_h], ecx
+    
+    ; popup_x = board_x + (2 * tile_size) [Starts at column 3]
+    mov ecx, eax
+    shl ecx, 1
+    add ecx, dword [rel board_x]
+    mov dword [rel popup_x], ecx
+    
+    ; popup_y = board_y + (3 * tile_size) [Starts at row 4]
+    mov ecx, eax
+    imul ecx, 3
+    add ecx, dword [rel board_y]
+    mov dword [rel popup_y], ecx
+    
+    ; btn_w = 2 * tile_size
+    mov ecx, eax
+    shl ecx, 1
+    mov dword [rel btn_w], ecx
+    
+    ; btn_h = 0.5 * tile_size
+    mov ecx, eax
+    shr ecx, 1
+    mov dword [rel btn_h], ecx
+    
+    ; btn_x = popup_x + 1.5 * tile_size (Right-aligned under the text)
+    mov ecx, dword [rel popup_x]
+    add ecx, eax
+    mov ebx, eax
+    shr ebx, 1
+    add ecx, ebx
+    mov dword [rel btn_x], ecx
+    
+    ; btn_y = popup_y + 1.25 * tile_size
+    mov ecx, dword [rel popup_y]
+    add ecx, eax
+    mov ebx, eax
+    shr ebx, 2
+    add ecx, ebx
+    mov dword [rel btn_y], ecx
+    
+    ; text_scale = max(1, tile_size / 48) 
+    xor edx, edx
+    mov ebx, 48
+    div ebx
+    cmp eax, 1
+    jge .save_scale
+    mov eax, 1
+    
+.save_scale:
+    mov dword [rel text_scale], eax
+
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
     ret

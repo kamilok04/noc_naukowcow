@@ -124,7 +124,7 @@ update_mouse:
     jmp .done
 
 .no_mouse:
-    ;  LOG "No mouse has been detected!"
+    LOG "No mouse has been detected!"
 .done:
     add rsp, 32
     pop rbp
@@ -148,21 +148,26 @@ handle_mouse_click:
     mov r8d, dword [rel mouse_y]
 
     mov r10, rcx        ; keep the mouse coords
-    mov r11, r8         
+    mov r11, r8       
+    
 
     ; LOG "Mouse Y = %d", r8
     cmp byte [rel match_state], 0
     je .game_is_active
     
     ; check if the click is inside the restart button
-    cmp rcx, BTN_X
+    mov edi, dword [rel btn_x]
+    cmp ecx, edi
     jl .done                      ; too far left
-    cmp rcx, BTN_X + BTN_W
+    add edi, dword [rel btn_w]
+    cmp ecx, edi
     jge .done                     ; too far right
     
-    cmp r8, BTN_Y
+    mov edi, dword [rel btn_y]
+    cmp r8d, edi
     jl .done                      ; too far above
-    cmp r8, BTN_Y + BTN_H
+    add edi, dword [rel btn_h]
+    cmp r8d, edi
     jge .done                     ; too far below
     
     call reset_game               ; ok; restart
@@ -182,35 +187,30 @@ handle_mouse_click:
     mov r8, r11
 
     ; normalize
-    sub rcx, BOARD_START_X
-    jl .off_board                    ; too far left
-    cmp rcx, 8 * SQUARE_SIZE
-    jge .off_board                   ; too far right
+    sub ecx, dword [rel board_x]
+    jl .off_board                ; too far left
     
-    sub r8, BOARD_START_Y
-    jl .off_board                    ; too far up
-    cmp r8, 8 * SQUARE_SIZE
-    jge .off_board                   ; too far down
+    mov eax, ecx
+    xor edx, edx
+    div dword [rel tile_size]
+    cmp eax, 8
+    jge .off_board               ; too far right
+    mov ebx, eax                     ; EBX = column
+    
+    sub r8d, dword [rel board_y]
+    jl .off_board                ; too high
+    
+    mov eax, r8d
+    xor edx, edx
+    div dword [rel tile_size]
+    cmp eax, 8
+    jge .off_board               ; too low
+    
 
-    mov r9, SQUARE_SIZE
-    
-    ; get the column
-    mov rax, rcx
-    xor rdx, rdx                 
-    div r9                           
-    mov rcx, rax                     ; RCX = column
-    
-    mov rax, r8
-    xor rdx, rdx
-    div r9
-    mov r8, rax                      ; R8 = row
-    ; see what moves are legal
-    ; grab the index
-    shl r8, 4
-    or rcx, r8
+    shl eax, 4                       ; row * 16
+    add eax, ebx                     ; + column
+    mov r8, rax                      ; = index
 
-    mov r8, rcx
-    ; LOG "Click is on the board, %x", r8
     call the_chess_state_machine
     jmp .done
     
@@ -239,70 +239,66 @@ check_promotion_click:
     movzx rax, byte [rel promotion_sq]
     mov r8, rax
     and r8, 0x0F
-    imul r8, SQUARE_SIZE
-    add r8, BOARD_START_X   ; R8 = screen x
+    
+    mov r10d, dword [rel tile_size]  ; load dynamic tile size
+    imul r8, r10
+    add r8d, dword [rel board_x]     ; R8 = screen x
     
     shr rax, 4
-    imul rax, SQUARE_SIZE
-    add rax, BOARD_START_Y   ; RAX = screen y
+    imul rax, r10
+    add eax, dword [rel board_y]     ; RAX = screen y
     
     ; check x bounds (menu will appear on the promoted column)
     cmp rcx, r8
     jl .not_intercepted
-    add r8, SQUARE_SIZE
+    add r8, r10                      ; add tile_size
     cmp rcx, r8
     jge .not_intercepted
     
-    ; check y index (this willl determine the option picked)
+    ; check y index (this will determine the option picked)
     mov r9, rdx              
     sub r9, rax              
     
-    ; Direction branch
+    ; direction
     mov bl, byte [rel current_color]
     test bl, bl
     jnz .black_bounds
     
 .white_bounds:
-    ; white menu goes down: 
-    ; difference from menu's start must be 0 to (4*SQUARE_SIZE - 1)
     cmp r9, 0
     jl .not_intercepted
-    mov r10, SQUARE_SIZE
-    imul r10, 4
-    cmp r9, r10
+    mov r11, r10
+    imul r11, 4                      ; tile_size * 4
+    cmp r9, r11
     jge .not_intercepted
     
     mov rax, r9
     xor rdx, rdx                 
-    mov r10, SQUARE_SIZE         
-    div r10                      ; rax = clicked index
+    div r10                          ; divide by tile_size
     jmp .execute
     
 .black_bounds:
-    
     mov r9, rax
-    add r9, SQUARE_SIZE
+    add r9, r10                      ; add tile_size
     dec r9
-    sub r9, rdx ; distance to the bottom of the tile
+    sub r9, rdx 
 
     cmp r9, 0
     jl .not_intercepted
-    mov r10, SQUARE_SIZE
-    imul r10, 4
-    cmp r9, r10
+    mov r11, r10
+    imul r11, 4                      ; tile_size * 4
+    cmp r9, r11
     jge .not_intercepted
     
     mov rax, r9
     xor rdx, rdx                 
-    mov r10, SQUARE_SIZE         
-    div r10           
+    div r10                          ; divide by tile_size
     
 .execute:
     call resolve_promotion
-    
-    mov rax, 1               ; tell mouse handler to skip standard processing
+    mov rax, 1
     ret
 
 .not_intercepted:
-    xor rax, rax             ; normal click
+    xor rax, rax
     ret

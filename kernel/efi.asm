@@ -93,7 +93,7 @@ efi_main:
     
     LOG "The GOP protocol located succesfully."
     
-    ; call set_max_resolution
+    call set_max_resolution
 
     ; ask the framebuffer what it knows
     mov rbx, [rel gop_ptr]   
@@ -215,6 +215,8 @@ efi_main:
     mov [rel mouse_event_array], rax
     
     LOG "Initializing the game."
+    call calculate_board_layout
+
     call render_playfield
 
     call update_match_state
@@ -414,6 +416,7 @@ data_rva equ text_rva + text_vsize
     root_dir_size dq 0
 
     ; GOP ptrs
+    max_ratio dd 0
     gop_ptr dq 0
     framebuffer_base  dq 0
     framebuffer_pitch dq 0
@@ -424,6 +427,11 @@ data_rva equ text_rva + text_vsize
     info_size   dq 0
     info_ptr    dq 0
     COLOR_KEY      equ 0x00FF00FF    ; magenta
+
+    ; chess graphics vars
+    tile_size dd 0
+    board_x dd 0
+    board_y dd 0
 
     ; mouse ptrs
     mouse_ptr dq 0

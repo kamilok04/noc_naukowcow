@@ -17,9 +17,11 @@
     B_QUEEN     equ 11  
     B_KING      equ 12
 
-SQUARE_SIZE    equ 80            ; 80x80 pixels per square
-BOARD_START_X  equ 100           ; margin of 100
-BOARD_START_Y  equ 100           ; margin of 100
+; removed in favour of dynamic UI computation
+
+; SQUARE_SIZE    equ 80            ; 80x80 pixels per square
+; BOARD_START_X  equ 100           ; margin of 100
+; BOARD_START_Y  equ 100           ; margin of 100
 
 COLOR_LIGHT    equ 0x00F0D9B5    ; light wood-ish
 COLOR_DARK     equ 0x00B58863    ; dark wood-ish
@@ -136,20 +138,31 @@ match_state db 0
 ; endgame GUI
 POPUP_W         equ 300
 POPUP_H         equ 240
-POPUP_X         equ BOARD_START_X + (4 * SQUARE_SIZE) - (POPUP_W / 2)
-POPUP_Y         equ BOARD_START_Y + (4 * SQUARE_SIZE) - (POPUP_H / 2)
 
-BTN_W           equ 140
-BTN_H           equ 50
-BTN_X           equ POPUP_X + (POPUP_W / 2) - (BTN_W / 2)
-BTN_Y           equ POPUP_Y + 160
-POPUP_TEXT_X    equ POPUP_X + 16
-POPUP_TEXT_Y    equ POPUP_X + 140
+; removed in favor of runtime calculation
+; POPUP_X         equ BOARD_START_X + (4 * SQUARE_SIZE) - (POPUP_W / 2)
+; POPUP_Y         equ BOARD_START_Y + (4 * SQUARE_SIZE) - (POPUP_H / 2)
+; BTN_X           equ POPUP_X + (POPUP_W / 2) - (BTN_W / 2)
+; BTN_Y           equ POPUP_Y + 160
+; BTN_TEXT_W      equ 16 * (popup_btn_str - stalemate_str)
+; BTN_TEXT_H      equ 16
+; BTN_W           equ 140
+; BTN_H           equ 50
+
+
 POPUP_TEXT_H    equ 50
-BTN_TEXT_W      equ 16 * (popup_btn_str - stalemate_str)
-BTN_TEXT_H      equ 16
-BTN_TEXT_X      equ BTN_X + (BTN_W / 2) - (BTN_TEXT_W / 2)
-BTN_TEXT_Y      equ BTN_Y + (BTN_H / 2) - (BTN_TEXT_H / 2)
+
+
+popup_x dd 0
+popup_y dd 0
+btn_x   dd 0
+btn_y   dd 0
+popup_w    dd 0
+popup_h    dd 0
+btn_w      dd 0
+btn_h      dd 0
+
+text_scale dd 1
 
 COLOR_POPUP_BG  equ 0x00222222   ; Dark Slate
 COLOR_BTN_BG    equ 0x0055AA55   ; Restart Button Green

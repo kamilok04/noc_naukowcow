@@ -55,6 +55,165 @@ draw_rectangle:
     ret
 
 ; ------------------------------------------------------------------------------
+; draw_bitmap_scaled
+; Draws a 32-bit uncompressed BMP, scaling it via NN interpolation, filling the square
+; Inputs:
+;   RDI - Framebuffer Base Address
+;   RSI - PixelsPerScanLine (Pitch)
+;   RCX - Start X (Screen)
+;   RDX - Start Y (Screen)
+;   R8  - Pointer to the BMP file in memory
+; ------------------------------------------------------------------------------
+; NN interpolation
+; in short: if a bitmap pixel cannot be mapped cleanly to a screen pixel,
+; select the closest available one.
+; as this is a piece-wise assignment, the final result will not have gaps.
+draw_bitmap_scaled:
+    push rbp
+    mov rbp, rsp
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rdi
+    push rsi
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+
+    mov r9, rdx
+
+    ; parse the BMP Header
+    movzx r12, dword [r8 + 0x12]     ; R12 = width
+    movzx r13, dword [r8 + 0x16]     ; R13 = height
+    movzx rbx, dword [r8 + 0x0a]     
+    add r8, rbx                      ; R8 = data pointer
+    
+    mov r14d, dword [rel tile_size] 
+    test r14, r14
+    jz .done
+
+    ; calculate pieces pixels will be assigned into
+    ; step_x = (r12 << 16) / r14
+    ; fixed-point float logic this is
+    mov rax, r12
+    shl rax, 16
+    xor rdx, rdx
+    div r14
+    mov r10, rax                     ; R10 = step_x
+    
+    ; step_y = (r13 << 16) / r14
+    mov rax, r13
+    shl rax, 16
+    xor rdx, rdx
+    div r14
+    mov r11, rax                     ; R11 = step_y
+
+    ; BMPs are bottom up, start y at (height-1)
+    mov rbx, r13
+    dec rbx
+    shl rbx, 16                      ; RBX = y accumulator
+    
+    ; R15 = width in bytes
+    mov r15, r12
+    shl r15, 2
+
+    mov rax, r13
+    dec rax
+    imul rax, r15
+    add r8, rax                      ; R8 = address of visual top row
+
+    xor rbx, rbx                     
+    push r14                         ;
+
+.row_loop:
+    ; RDI = x Accumulator
+    xor rdi, rdi                     
+    
+    mov rax, rcx                     ; RAX = Screen X
+    mov r13d, dword [rel tile_size]                    
+
+.pixel_loop:
+    ; un-float to actual pixels
+    mov rdx, rbx                     ; RBX is safe! (Y accumulator)
+    shr rdx, 16
+    
+    mov r12, rdi                     ; RDI is X accumulator
+    shr r12, 16
+    
+    ; source =  R8 + (y * width_bytes) + (x * 4)
+    push rax                         
+    mov rax, rdx
+    imul rax, r15                    ; RAX = y * row_bytes
+    mov rdx, r12
+    shl rdx, 2                       ; RDX = x * 4
+    sub rdx, rax                     ; RDX = (x * 4) - (y * row_bytes)
+    lea rax, [r8 + rdx]              ; RAX = addr
+    
+    mov edx, dword [rax]             ; EDX = color
+    pop rax                          
+    
+    mov r12d, edx                    
+    and r12d, 0x00FFFFFF              
+    cmp r12d, COLOR_KEY          
+    je .skip_pixel                   
+    
+    
+    ; destination address = backbuffer + (y * pitch + x) * 4
+    push rax                         
+    push rdx
+    mov rax, r9                      
+    imul rax, rsi                    
+    add rax, [rsp + 8]               ; +x
+    shl rax, 2                       
+    add rax, [rel backbuffer_ptr]    ; RAX = dest
+    
+    pop rdx
+    mov dword [rax], edx            
+    pop rax
+
+.skip_pixel:
+    add rdi, r10                     ; x acc+= step_x
+    inc rax                          ; screen x += 1
+    
+    dec r13
+    jnz .pixel_loop
+    
+    ; Row complete
+    add rbx, r11                     ; y acc -= step_y (moving upwards)
+    inc r9                           ; screen y += 1
+    
+    pop r14                          
+    dec r14
+    push r14                         
+    jnz .row_loop
+    
+    pop r14                          
+
+.done:
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rsi
+    pop rdi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+    mov rsp, rbp
+    pop rbp
+    ret
+; ------------------------------------------------------------------------------
 ; draw_bitmap
 ; Draws a 32-bit uncompressed BMP image to the screen.
 ; Inputs:

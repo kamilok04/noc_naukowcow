@@ -34,18 +34,34 @@ set_max_resolution:
     test rax, rax
     jnz .next_mode                   ; skip if mode unavailable for whatever reason
 
-    ; calculate resolution (x * y)
     mov rdi, [rel info_ptr]
     mov eax, dword [rdi + 4]         ; EAX = HorizontalResolution
     mov ecx, dword [rdi + 8]         ; ECX = VerticalResolution
-    mul rcx                          ; RAX = EAX * ECX
     
-    cmp rax, [rel max_pixels]
-    jbe .free_info                   ; if smaller or equal, skip saving
-
-    mov [rel max_pixels], rax
-    mov [rel target_mode], r14d
-
+    ; total pixels
+    mov r10, rax
+    imul r10, rcx                    ; R10 = EAX * ECX
+    
+    ; aspect ratio
+    xor rdx, rdx                     
+    mov rax, rdi                     
+    mov eax, dword [rdi + 4]
+    imul rax, 100
+    div rcx                          ; RAX = ratio (*100, truncated to int)
+    mov r11, rax                     ; 16:9 = 1,(7) -> 177
+    
+    ; prefer wide screens
+    cmp r11d, dword [rel max_ratio]
+    jb .free_info                    ; we want it  w i d e 
+    ja .new_winner                   ;
+    
+    cmp r10, qword [rel max_pixels]
+    jbe .free_info                   ; pick highest pixel count if in doubt
+    
+.new_winner:
+    mov dword [rel max_ratio], r11d  
+    mov qword [rel max_pixels], r10  
+    mov dword [rel target_mode], r14d 
 .free_info:
     ; don't leak memory
     mov rcx, [rel info_ptr]

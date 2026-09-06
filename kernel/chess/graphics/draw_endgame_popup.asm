@@ -5,35 +5,35 @@
 draw_endgame_popup:
     push rbp
     mov rbp, rsp
+    push rax
+    push rbx
     push rcx
     push rdx
     push r8
     push r9
     push r10
+    push r13
     push rdi
     push rsi
     
     cmp byte [rel match_state], 0
     je .done
 
-
     ; draw the bgd
     mov rdi, [rel backbuffer_ptr]
     mov rsi, [rel framebuffer_pitch]
-    mov rcx, POPUP_X
-    mov rdx, POPUP_Y
-    mov r8, POPUP_W
-    mov r9, POPUP_H
+    mov ecx, dword [rel popup_x]
+    mov edx, dword [rel popup_y]
+    mov r8d, dword [rel popup_w]
+    mov r9d, dword [rel popup_h]
     mov r10d, COLOR_POPUP_BG
     call draw_rectangle
     
     ; draw the btn
-    mov rdi, [rel backbuffer_ptr]
-    mov rsi, [rel framebuffer_pitch]
-    mov rcx, BTN_X
-    mov rdx, BTN_Y
-    mov r8, BTN_W
-    mov r9, BTN_H
+    mov ecx, dword [rel btn_x]
+    mov edx, dword [rel btn_y]
+    mov r8d, dword [rel btn_w]
+    mov r9d, dword [rel btn_h]
     mov r10d, COLOR_BTN_BG
     call draw_rectangle
     
@@ -62,38 +62,66 @@ draw_endgame_popup:
     ; grab the pointer for the bmp
     lea r8, [rel piece_bitmaps]
     mov r8, [r8 + rax * 8]       ; R8 = address of the BMP
-
     
-    ; center horizontally in the popup: POPUP_X + (POPUP_W/2) - (SQUARE_SIZE/2)
-    ; place vertically above the restart button: POPUP_Y + 20
-    mov rcx, POPUP_X + (POPUP_W / 2) - (SQUARE_SIZE / 2)
-    mov rdx, POPUP_Y + 20
-
-    mov rdi, [rel backbuffer_ptr]
-    mov rsi, [rel framebuffer_pitch]
-    call draw_bitmap      
+    ; Piece X = popup_x + 0.25 * tile_size 
+    mov ecx, dword [rel tile_size]
+    shr ecx, 2
+    add ecx, dword [rel popup_x]
+    
+    ; center vertically
+    mov edx, dword [rel tile_size]
+    shr edx, 1
+    add edx, dword [rel popup_y]
+    call draw_bitmap_scaled    
     
 .draw_text:
+    ; X = popup_x + tile_size (right)
+    mov ecx, dword [rel tile_size]
+    add ecx, dword [rel popup_x]
+
+    ; Y = popup_y + 0.5 * tile_size
+    mov edx, dword [rel tile_size]
+    shr edx, 1
+    add edx, dword [rel popup_y]
+    
     mov r8, r9
-    mov rcx, POPUP_TEXT_X
-    mov rdx, POPUP_TEXT_Y
     mov r10d, COLOR_HIGHLIGHT
-    mov r13, 2
+    mov r13d, dword [rel text_scale]
     call draw_string
 
+    mov ecx, dword [rel btn_x]
+    mov ebx, dword [rel btn_w]
+    shr ebx, 1
+    add ecx, ebx
+    mov eax, 56                  ; "Rewanż!" = 7 * 8px = 56px
+    imul eax, dword [rel text_scale]
+    shr eax, 1                   
+    sub ecx, eax                 ; center horizontally
+    
+    mov edx, dword [rel btn_y]
+    mov ebx, dword [rel btn_h]
+    shr ebx, 1
+    add edx, ebx
+    mov eax, 4                   ; Half of 8px base height
+    imul eax, dword [rel text_scale]
+    sub edx, eax                 ; center vertically
+
     lea r8, [rel popup_btn_str]
-    mov rcx, BTN_TEXT_X
-    mov rdx, BTN_TEXT_Y
     mov r10d, COLOR_WHITE
+    mov r13d, dword [rel text_scale]
     call draw_string
 
 .done:
     pop rsi
     pop rdi
+    pop r13
     pop r10
     pop r9
     pop r8
     pop rdx
     pop rcx
+    pop rbx
+    pop rax
+    mov rsp, rbp
     pop rbp
     ret

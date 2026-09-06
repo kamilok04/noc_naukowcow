@@ -25,6 +25,11 @@ COLOR_LIGHT    equ 0x00F0D9B5    ; light wood-ish
 COLOR_DARK     equ 0x00B58863    ; dark wood-ish
 COLOR_HIGHLIGHT equ 0x007FA650   ; g r e e n
 COLOR_PROMOTION equ 0x00D3D3D3   ; grey
+COLOR_RED       equ 0x00ff0000
+COLOR_GREEN     equ 0x0000ff00
+COLOR_BLUE      equ 0x000000ff
+COLOR_BG        equ 0x008ab4f8    ; light blue
+COLOR_WHITE     equ 0x00ffffff
 
 ; 0 = blank square
 ; 1-6 = white (PNBRQK in this order)
@@ -130,14 +135,21 @@ match_state db 0
 
 ; endgame GUI
 POPUP_W         equ 300
-POPUP_H         equ 200
+POPUP_H         equ 240
 POPUP_X         equ BOARD_START_X + (4 * SQUARE_SIZE) - (POPUP_W / 2)
 POPUP_Y         equ BOARD_START_Y + (4 * SQUARE_SIZE) - (POPUP_H / 2)
 
 BTN_W           equ 140
 BTN_H           equ 50
 BTN_X           equ POPUP_X + (POPUP_W / 2) - (BTN_W / 2)
-BTN_Y           equ POPUP_Y + 120
+BTN_Y           equ POPUP_Y + 160
+POPUP_TEXT_X    equ POPUP_X + 16
+POPUP_TEXT_Y    equ POPUP_X + 140
+POPUP_TEXT_H    equ 50
+BTN_TEXT_W      equ 16 * (popup_btn_str - stalemate_str)
+BTN_TEXT_H      equ 16
+BTN_TEXT_X      equ BTN_X + (BTN_W / 2) - (BTN_TEXT_W / 2)
+BTN_TEXT_Y      equ BTN_Y + (BTN_H / 2) - (BTN_TEXT_H / 2)
 
 COLOR_POPUP_BG  equ 0x00222222   ; Dark Slate
 COLOR_BTN_BG    equ 0x0055AA55   ; Restart Button Green
@@ -149,3 +161,8 @@ initial_board:
     times 64 db 0 
     db  1,  1,  1,  1,  1,  1,  1,  1, 0, 0, 0, 0, 0, 0, 0, 0  ; 
     db  4,  2,  3,  5,  6,  3,  2,  4, 0, 0, 0, 0, 0, 0, 0, 0  ; white
+
+black_wins_str db "Czarne wygrywają!", 0
+white_wins_str db "Białe wygrywają!", 0
+stalemate_str db "Remis.", 0
+popup_btn_str db "Rewanż!", 0

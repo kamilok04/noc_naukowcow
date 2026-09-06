@@ -150,11 +150,59 @@ efi_main:
     jne .file_error          ; If it's not "BM", the disk read failed!
 
     call draw_bitmap
+
+    LOG "Testing string output functionality."
+    lea r8, [rel utf_test]
+    mov rcx, 50
+    xor rdx, rdx
+    mov r10d, COLOR_HIGHLIGHT
+    mov r13, 3
+    call draw_string
+
+    lea r8, [rel utf_red]
+    mov rcx, 50
+    mov rdx, 50
+    mov r10d, COLOR_RED
+    mov r13, 2
+    call draw_string
+
+    lea r8, [rel utf_green]
+    mov rcx, 50
+    mov rdx, 100
+    mov r10d, COLOR_GREEN
+    mov r13, 2
+    call draw_string
+
+    lea r8, [rel utf_blue]
+    mov rcx, 50
+    mov rdx, 150
+    mov r10d, COLOR_BLUE
+    mov r13, 2
+    call draw_string
+
+    lea r8, [rel utf_ex_1]
+    mov rcx, 50
+    mov rdx, 180
+    mov r10d, COLOR_PROMOTION
+    mov r13, 1
+    call draw_string    
     
-    ; Close the file when done to prevent memory leaks
-    ; lea rcx, [rel test_file_handle]
-    ; call fclose
+    lea r8, [rel utf_ex_2]
+    mov rcx, 50
+    mov rdx, 190
+    mov r10d, COLOR_PROMOTION
+    mov r13, 1
+    call draw_string
+
+    lea r8, [rel utf_ex_3]
+    mov rcx, 50
+    mov rdx, 200
+    mov r10d, COLOR_PROMOTION
+    mov r13, 1
+    call draw_string
+  
     call swap_buffers
+
 
     LOG "Loading assets..."
     call init_assets
@@ -322,9 +370,19 @@ data_rva equ text_rva + text_vsize
 
     ; Chess!
     %include "board_state.asm"
+
+    ; typeface
+    %include "font.asm"
     
 
     ; Serial Logs
+    utf_test db "ĄĘŚĆŻÓŁŃŹąęśćżółń123#", 0
+    utf_red db "Czerwony.", 0
+    utf_green db "Zielony.", 0
+    utf_blue db "Niebieski.", 0
+    utf_ex_1 db "1.   e4      e5", 0
+    utf_ex_2 db "2.   Nc5     d5", 0
+    utf_ex_3 db "69.  cxd8=N# 1-0", 0
     msg_printf_test db "This is a dynamically loaded string.",  0
     msg_gop_ok db "Graphics Output Protocol located.", 13, 10, 0
     msg_iso_reading_file db "Attempting a file read...", 13, 10, 0

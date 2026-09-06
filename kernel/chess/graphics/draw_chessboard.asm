@@ -10,6 +10,7 @@ render_playfield:
     push rbp
     mov rbp, rsp
 
+    call _draw_bg
     call _draw_chessboard
     call _draw_valid_moves
     call _draw_pieces
@@ -19,6 +20,43 @@ render_playfield:
     mov rsp, rbp
     pop rbp
     ret
+; ------------------------------------------------------------------------------
+; draw_bg
+; Clear the background.
+; ------------------------------------------------------------------------------
+_draw_bg:  
+    push rbp
+    mov rbp, rsp
+    push rdi
+    push rsi
+    push rcx
+    push rdx
+    push r8
+    push r9
+    push r10
+    ; grab screen details
+    mov rdi, [rel backbuffer_ptr]
+    mov rsi, [rel framebuffer_pitch]
+    xor rcx, rcx
+    xor rdx, rdx
+    mov r8d, [rel screen_w]
+    mov r9d, [rel screen_h]
+    mov r10d, COLOR_BG
+    call draw_rectangle
+
+    pop r10
+    pop r9
+    pop r8
+    pop rdx
+    pop rcx
+    pop rsi
+    pop rdi
+    mov rsp, rbp
+    pop rbp
+    ret
+
+
+
 ; ------------------------------------------------------------------------------
 ; draw_chessboard
 ; Renders the 8x8 grid to the backbuffer.

@@ -245,3 +245,185 @@ restore_cursor_background:
 .done:
     pop rbp
     ret
+
+; ------------------------------------------------------------------------------
+; draw_string
+; Inputs: R8  = Pointer to null-terminated string
+;         RCX = start x, RDX = start y, R10D = color
+;         R13 = scale factor (1 = 8x8, 2 = 16x16, 3 = 24x24, ...)
+; ------------------------------------------------------------------------------
+draw_string:
+    push rbp
+    mov rbp, rsp
+    push rax
+    push rcx
+    push rsi
+    push r8
+    push r9
+    push r11
+
+    mov rsi, r8                  ; RSI = string ptr
+
+.loop:
+    movzx rax, byte [rsi]        ; char-by-char read, as some characters take multiple bytes
+    test al, al
+    jz .done                     ; terminator
+
+    cmp al, 0xC0
+    jae .utf8_char               ; UTF-8 lead
+
+    ; ASCII
+    jmp .draw_glyph
+
+; Idea behind reading UTF chars
+; The character has 1 or more bytes
+; If the character is more than 1 byte long,
+; its first byte (the lead) must fall within a particular range
+; detect that and process future bytes into a mapping
+; this parser only support 1- and 2-byte long characters (U+0000 - U+07FF)
+; passing a longer character would probably cause corruption and other fun stuff
+
+.utf8_char:
+    mov r9b, al                  ; R9B = lead
+    inc rsi                      ; next byte
+    mov r11b, byte [rsi]         ; R11B = trail
+    
+    push rsi                     ; save ptr
+    lea rbx, [rel utf8_pl_map]
+    
+.map_scan:
+    mov al, byte [rbx]           
+    test al, al
+    jz .unknown_char             ; terminated without resolving, print '?'
+    
+    cmp al, r9b                  ; lead byte match?
+    jne .next_map_entry
+    
+    mov al, byte [rbx + 1]
+    cmp al, r11b                 ; trail byte match?
+    je .map_found
+    
+.next_map_entry:
+    add rbx, 3                   ; Jump 3 bytes forward in map
+    jmp .map_scan
+    
+.map_found:
+    movzx rax, byte [rbx + 2]    ; get the mapped extended index (128-145)
+    pop rsi
+    jmp .draw_glyph
+    
+.unknown_char:
+    pop rsi
+    mov rax, '?'                 ; if you don't know, print a question mark
+
+.draw_glyph:
+    ; calculate pointer: font_full_ascii + (index * 8)
+    shl rax, 3                   
+    lea r8, [rel font_full_ascii]
+    add r8, rax                  
+
+    push rcx
+    push rsi
+    call draw_char            ; R8 = pointer, RCX = X, RDX = Y
+    pop rsi
+    pop rcx
+
+    lea rcx, [rcx + 8 * r13]       
+    inc rsi                      ; next char
+    jmp .loop
+
+.done:
+    pop r11
+    pop r9
+    pop r8
+    pop rsi
+    pop rcx
+    pop rax
+    pop rbp
+    ret
+
+; ------------------------------------------------------------------------------
+; draw_char
+;   Renders a single 8x8 1-bit glyph to the linear backbuffer.
+; Inputs:
+;   R8   - Pointer to character data (from font array)
+;   RCX  - X (top-left of char)
+;   RDX  - Y (top-left of char)
+;   R10D - 32-bit XXRRGGBB color
+;   R13 - scale factor (1 = 8x8, 2 = 16x16, ...)
+; ------------------------------------------------------------------------------
+draw_char:
+    push rbp
+    mov rbp, rsp
+    push rax
+    push rcx
+    push rdx
+    push rdi
+    push r8
+    push r9
+    push r11
+    push r12
+
+
+
+    mov r9, 8                         ; 8 rows high by default
+  ;  mul r9, r13                       ; apply scaling
+.row_loop:
+    mov r12b, byte [r8]               ; load a byte
+    mov r11, 8                        ; 8 columns wide
+   ; mul r11, r13                      ; scale
+    
+    push rcx                          
+
+.pixel_loop:
+    shl r12b, 1                       ; check the leftmost bit
+    jnc .skip_pixel                   ; CF = 0: transparency flag, skip
+    
+    mov r14, r13                      
+.fill_y:
+    mov r15, r13                     
+.fill_x:
+
+    ; Address = backbuffer + [ (Y + r14 - 1)* pitch + (X + r15 - 1) ] * 4
+    mov rax, rdx
+    add rax, r14
+    dec rax
+    imul rax, [rel framebuffer_pitch]
+    
+    mov rbx, rcx
+    add rbx, r15
+    dec rbx
+    
+    add rax, rbx
+    shl rax, 2                        
+    
+    mov rdi, [rel backbuffer_ptr]
+    add rdi, rax
+    mov dword [rdi], r10d             
+
+    dec r15
+    jnz .fill_x
+    dec r14
+    jnz .fill_y  
+
+.skip_pixel:
+    add rcx, r13                         
+    dec r11                           
+    jnz .pixel_loop                
+    
+    pop rcx                           
+    add rdx, r13                         
+    inc r8                            
+    dec r9                            
+    jnz .row_loop                     
+    
+    pop r12
+    pop r11
+    pop r9
+    pop r8
+    pop rdi
+    pop rdx
+    pop rcx
+    pop rax
+    pop rbp
+    ret

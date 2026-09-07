@@ -112,3 +112,29 @@ struc EFI_SIMPLE_POINTER_STATE
     ; 14 bytes, but pad for alignment
     ._Padding           resb 2
 endstruc
+
+struc EFI_TCP4_CONFIG_DATA
+    .TypeOfService     resb 1
+    .TimeToLive        resb 1
+    .UseDefaultAddress resb 1
+    .StationAddress    resb 4     ; IPv4 array
+    .SubnetMask        resb 4     ; IPv4 array
+    ._Padding          resb 1
+    .StationPort       resw 1     
+    .RemoteAddress     resb 4     ; IPv4 array
+    .RemotePort        resw 1
+    .ActiveFlag        resb 1     ; 0 = listen, 1 = connect
+    
+    alignb 8                      ; 64-bit alignment
+    .ControlOption     resq 1     ; Pointer to EFI_TCP4_OPTION
+endstruc
+
+struc EFI_TCP4_COMPLETION_TOKEN
+    .Event       resq 1      ; EFI_EVENT 
+    .Status      resq 1      ; EFI_STATUS (SUCCESS, NOT_READY, ...)
+endstruc
+
+struc EFI_TCP4_LISTEN_TOKEN
+    .CompletionToken resb 16 ;
+    .NewChildHandle  resq 1  ; incoming client's handle here
+endstruc

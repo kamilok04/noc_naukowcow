@@ -58,6 +58,7 @@ COMMAND ${CMAKE_ASM_NASM_COMPILER}
 "-i${ARCH_AGNOSTIC_ROOT}/inc"
 "-i${ARCH_AGNOSTIC_ROOT}/io/files"
 "-i${ARCH_AGNOSTIC_ROOT}/io/mouse"
+"-i${ARCH_AGNOSTIC_ROOT}/io/network"
 "-i${ARCH_AGNOSTIC_ROOT}/graphics"
 "-i${ARCH_AGNOSTIC_ROOT}/utils"
 "-i${ARCH_AGNOSTIC_ROOT}/chess"
@@ -136,12 +137,14 @@ COMMAND "qemu-system-x86_64"
 "-cdrom" "${CMAKE_SYSROOT}/../chessos.iso"
 "-device" "qemu-xhci"
 "-device" "usb-mouse"
+"-device" "e1000"
+"-device" "virtio-rng-pci"
 "-display" "gtk,show-tabs=on"
 "-chardev" "stdio,id=char0,logfile=serial.log,signal=off"
 "-serial" "chardev:char0"
 "-machine" "q35"
 "$<$<CONFIG:DEBUG>:-s>" # otwórz port 1234 dla debuggera
-"$<$<CONFIG:DEBUG>:-S>" # czekaj na zezwolenie od debuggera, zanim zaczniesz działać
+"$<$<CONFIG:DEBUG>:-S>" # czekaj na zezwolenie od debuggera
 # "$<$<CONFIG:DEBUG>:-serial>" "$<$<CONFIG:DEBUG>:stdio>"
 )
 

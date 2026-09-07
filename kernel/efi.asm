@@ -203,7 +203,22 @@ efi_main:
   
     call swap_buffers
 
+    cmp byte [rel net_role], 0
+    je .loading_assets
+    LOG "Loading networking functionalities."
+    
+    call init_network                ; find the protocol
+    test rax, rax
+    jnz .loading_assets
+    call setup_connection            ; apply /30 subnet
+    test rax, rax
+    jnz .loading_assets
+    call create_network_events       ; create events
+    test rax, rax
+    jnz .loading_assets
+    call start_handshake             ; trigger a connection
 
+.loading_assets:
     LOG "Loading assets..."
     call init_assets
 
@@ -280,10 +295,15 @@ efi_main:
     ; was 1, is 0, this is very much a click (or a drag, y'know)
     ; LOG "Click."
     call handle_mouse_click
-
-    call render_playfield           
-    call swap_buffers                
-    mov byte [rel cursor_is_saved], 0;
+    
+    cmp byte [rel net_role], 0
+    je .skip_network
+    call poll_network_events     
+    
+.skip_network:
+    call render_playfield
+    call swap_buffers               
+    mov byte [rel cursor_is_saved], 0
 
 .save_mouse_state:
     mov byte [rel prev_lmb_state], al
@@ -357,6 +377,9 @@ efi_main:
 %include "update_match_state.asm"
 %include "draw_endgame_popup.asm"
 %include "reset_game.asm"
+%include "create_network_events.asm"
+%include "initialize_network.asm"
+%include "poll_network_events.asm"
 
 ; Pad .text to 8KB
 align 8192, db 0
@@ -459,6 +482,55 @@ data_rva equ text_rva + text_vsize
     cursor_is_saved  db 0           ; Flag: 0 = No, 1 = Yes
     cursor_size      equ 10         ; 32x32 area
 
+    ; networking
+    tcp4_sb_ptr dq 0        ; binding ptr
+    connection_ptr    dq 0  ; actual connection ptr
+    tcp4_handle dq 0        ; holds the hand(le) for child connection
+    tcp4_ptr    dq 0        ; protocol ptr
+    net_role    db 1        ; 0 = offline play, 1 = server, 2 = client
+    connection_status db 0      ; 0 = offline, 1 = pending handshake, 2 = connected
+
+    align 8
+    tcp4_config_host:
+        istruc EFI_TCP4_CONFIG_DATA
+            at .TypeOfService,     db 0
+            at .TimeToLive,        db 255
+            at .UseDefaultAddress, db 0
+            at .StationAddress,    db 10, 244, 244, 1       ; 10.244.244.1/30
+            at .SubnetMask,        db 255, 255, 255, 252
+            at .StationPort,       dw 27015
+            at .RemoteAddress,     db 0, 0, 0, 0
+            at .RemotePort,        dw 0
+            at .ActiveFlag,        db 0          ; LISTEN
+            at .ControlOption,     dq 0
+        iend
+
+    align 8
+    tcp4_config_join:
+        istruc EFI_TCP4_CONFIG_DATA
+            at EFI_TCP4_CONFIG_DATA.TypeOfService,     db 0
+            at EFI_TCP4_CONFIG_DATA.TimeToLive,        db 255
+            at EFI_TCP4_CONFIG_DATA.UseDefaultAddress, db 0
+            at EFI_TCP4_CONFIG_DATA.StationAddress,    db 10, 244, 244, 2      ; 10.244.244.2/30
+            at EFI_TCP4_CONFIG_DATA.SubnetMask,        db 255, 255, 255, 252
+            at EFI_TCP4_CONFIG_DATA.StationPort,       dw 27015
+            at EFI_TCP4_CONFIG_DATA.RemoteAddress,     db 10, 244, 244, 1
+            at EFI_TCP4_CONFIG_DATA.RemotePort,        dw 27015
+            at EFI_TCP4_CONFIG_DATA.ActiveFlag,        db 1          ; CONNECT
+            at EFI_TCP4_CONFIG_DATA.ControlOption,     dq 0
+        iend
+
+    handshake_event  dq 0        ; EFI_EVENT 
+
+    align 8
+    token_handshake:
+        istruc EFI_TCP4_LISTEN_TOKEN  ; large enough to act as a Connection Token
+            at EFI_TCP4_LISTEN_TOKEN.CompletionToken, dq 0, 0
+            at EFI_TCP4_LISTEN_TOKEN.NewChildHandle,  dq 0
+        iend
+
+   
+
     
     ; GUIDs
     ; {8D59D32B-C655-4AE9-9B15-F25904992A43}
@@ -481,8 +553,20 @@ data_rva equ text_rva + text_vsize
         dd 0x964e5b21
         dw 0x6459, 0x11d2
         db 0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b
-    
-   
+
+    ; {00720665-67EB-4a99-BAF7-D3C33A1C7CC9}
+    GUID_TCP4_SERVICE_BINDING:
+        dd 0x00720665
+        dw 0x67EB, 0x4a99
+        db 0xBA, 0xF7, 0xD3, 0xC3, 0x3A, 0x1C, 0x7C, 0xC9
+    ; {65530BC7-A359-410f-B010-5AADC7EC2B62}
+    GUID_TCP4:
+        dd 0x65530bc7
+        dw 0xa359, 0x410f
+        db 0xb0, 0x10, 0x5a, 0xad, 0xc7, 0xec, 0x2b, 0x62
+
+
+
 
 ; Pad .data to 8KB
 align 8192, db 0

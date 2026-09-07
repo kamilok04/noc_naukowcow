@@ -226,10 +226,14 @@ efi_main:
     call init_mouse
     
     mov rcx, [rel mouse_ptr]
-    mov rax, [rcx + 16]                           ;
+    mov rax, [rcx + 16]                 
     mov [rel mouse_event_array], rax
+
+    call run_main_menu
     
     LOG "Initializing the game."
+
+
     call calculate_board_layout
 
     call render_playfield
@@ -257,81 +261,9 @@ efi_main:
     ; let it try again
     jnz .main_loop
 
-.drain_queue:
-    xor r15, r15                         
-    mov r14, 16                          ; ≤ 16 packets per frame please
+    call process_mouse_input
 
-.read_loop:
-    call update_mouse
-    test rax, rax
-    jnz .check_draw                      
-    
-    mov r15, 1                           
-    
-    dec r14                              
-    jz .flush_queue                      
-    jmp .read_loop                       
-
-.flush_queue:
-    mov rcx, [rel mouse_ptr]
-    xor rdx, rdx                         ; ExtendedVerification = FALSE
-    mov rax, [rcx + 0]                   ; Offset 0 = Protocol->Reset
-    sub rsp, 32
-    call rax
-    add rsp, 32            
-
-.check_draw:
-    test r15, r15
-    jz .main_loop      
-    
-    movzx eax, byte [rel mouse_state + 12] ; AL = current LMB state
-    movzx ebx, byte [rel prev_lmb_state]   ; BL = previous frame's LMB state
-
-    cmp bl, 1
-    jne .save_mouse_state
-    cmp al, 0
-    jne .save_mouse_state
-
-    ; was 1, is 0, this is very much a click (or a drag, y'know)
-    ; LOG "Click."
-    call handle_mouse_click
-    
-    cmp byte [rel net_role], 0
-    je .skip_network
-    call poll_network_events     
-    
-.skip_network:
-    call render_playfield
-    call swap_buffers               
-    mov byte [rel cursor_is_saved], 0
-
-.save_mouse_state:
-    mov byte [rel prev_lmb_state], al
-    ; copy background from below cursor
-    call restore_cursor_background
-    
-    ; embed the new cursor into the back
-    mov rcx, [rel saved_cursor_x]
-    mov rdx, [rel saved_cursor_y]
-    call push_cursor_region
-
-    ; save the background below the cursor
-    movzx rcx, dword [rel mouse_x]
-    movzx rdx, dword [rel mouse_y]
-    mov [rel saved_cursor_x], rcx
-    mov [rel saved_cursor_y], rdx
-    call save_cursor_background
-    mov byte [rel cursor_is_saved], 1
-
-    ; draw the cursor onto the backbuffer
-    call draw_cursor 
-
-    ; draw the new cursor to the physical screen
-    movzx rcx, dword [rel mouse_x]
-    movzx rdx, dword [rel mouse_y]
-    call push_cursor_region
-
-
+    ; polling hook would go here
 
     jmp .main_loop
 
@@ -380,6 +312,7 @@ efi_main:
 %include "create_network_events.asm"
 %include "initialize_network.asm"
 %include "poll_network_events.asm"
+%include "main_menu.asm"
 
 ; Pad .text to 8KB
 align 8192, db 0
@@ -415,6 +348,9 @@ data_rva equ text_rva + text_vsize
     test_file db "ASSETS/FOLDER/TEST.TXT;1", 0
     target_file db "OK.BMP;1", 0
     msg_done   db "The bootloader is done.", 13, 10, 0
+    str_menu_host    db "Graj jako gospodarz", 0
+    str_menu_join    db "Graj jako gość", 0
+    str_menu_offline db "Graj offline", 0
 
     ; my ptrs
     test_file_handle dq 9
@@ -529,6 +465,10 @@ data_rva equ text_rva + text_vsize
             at EFI_TCP4_LISTEN_TOKEN.NewChildHandle,  dq 0
         iend
 
+    ; main menu
+    in_menu db 1 ; 1: menu active, 0: in-game
+    path_logo db "ASSETS/CHESS/LOGO.BMP;1", 0
+    logo_ptr dq 0
    
 
     

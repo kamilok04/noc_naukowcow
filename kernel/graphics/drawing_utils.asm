@@ -19,6 +19,8 @@ draw_rectangle:
     push rax
     push rcx
     push rdx
+    push r8
+    push r9
     push r11
 
     ; offset = (Y * pitch + X) * 4 [bytes]
@@ -48,6 +50,8 @@ draw_rectangle:
 
 .done:
     pop r11
+    pop r9
+    pop r8
     pop rdx
     pop rcx
     pop rax

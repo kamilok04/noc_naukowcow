@@ -75,6 +75,10 @@ init_assets:
     call fopen
     mov rdx, [rax + FILE.BufferPtr]
     mov [rel piece_bitmaps + 12*8], rdx
+    
+    lea rcx, [rel path_logo]
+    call fopen
+    mov [rel logo_ptr], rax
     jmp .done
 
 .load_error:

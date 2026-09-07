@@ -148,9 +148,67 @@ handle_mouse_click:
     mov r8d, dword [rel mouse_y]
 
     mov r10, rcx        ; keep the mouse coords
-    mov r11, r8       
+    mov r11, r8      
     
+    cmp byte [rel in_menu], 1
+    jne .in_game
 
+    ; width check for all buttons
+    mov eax, dword [rel screen_w]
+    shr eax, 1
+    mov edi, eax
+    sub edi, 150
+    cmp ecx, edi
+    jl .done
+    add edi, 300
+    cmp ecx, edi
+    jge .done
+    
+    ; height check
+    mov eax, dword [rel screen_h]
+    shr eax, 1
+    
+    ; host btn
+    mov edi, eax
+    sub edi, 100
+    cmp r8d, edi
+    jl .done
+    add edi, 50
+    cmp r8d, edi
+    jl .select_host
+    
+    ; join btn
+    mov edi, eax
+    cmp r8d, edi
+    jl .done
+    add edi, 50
+    cmp r8d, edi
+    jl .select_join
+    
+    ; offline btn
+    mov edi, eax
+    add edi, 100
+    cmp r8d, edi
+    jl .done
+    add edi, 50
+    cmp r8d, edi
+    jl .select_offline
+    jmp .done
+
+.select_host:
+    mov byte [rel net_role], 1
+    mov byte [rel in_menu], 0
+    jmp .done
+.select_join:
+    mov byte [rel net_role], 2
+    mov byte [rel in_menu], 0
+    jmp .done
+.select_offline:
+    mov byte [rel net_role], 0
+    mov byte [rel in_menu], 0
+    jmp .done
+    
+.in_game:
     ; LOG "Mouse Y = %d", r8
     cmp byte [rel match_state], 0
     je .game_is_active
@@ -301,4 +359,108 @@ check_promotion_click:
 
 .not_intercepted:
     xor rax, rax
+    ret
+
+
+; ------------------------------------------------------------------------------
+; process_mouse_input
+; Handles mouse input once mouse is initialized.
+; Declutters the main loop for the most part.
+; ------------------------------------------------------------------------------
+process_mouse_input:
+    push rbp
+    mov rbp, rsp
+    push r14
+    push r15
+    xor r15, r15                       
+    mov r14, 16          ; ≤ 16 packets per frame please               
+    
+.read_loop:
+    call update_mouse                  
+    test rax, rax                      
+    jnz .check_draw                    
+    
+    mov r15, 1                         
+    dec r14                            
+    jz .flush_queue                    
+    jmp .read_loop                     
+
+.flush_queue:
+    mov rcx, [rel mouse_ptr]
+    xor rdx, rdx                       
+    mov rax, [rcx + EFI_SIMPLE_POINTER_PROTOCOL.Reset]          
+    sub rsp, 32
+    call rax
+    add rsp, 32            
+    
+
+.check_draw:
+    test r15, r15
+    jz .done                             
+    
+    movzx eax, byte [rel mouse_state + 12] 
+    movzx ebx, byte [rel prev_lmb_state]   
+
+    cmp bl, 1
+    jne .save_mouse_state
+    cmp al, 0
+    jne .save_mouse_state
+
+    mov r12b, byte [rel in_menu]      
+    call handle_mouse_click
+    
+    ; did the click happen inside the menu?
+    cmp r12b, 1
+    je .menu_click_post
+    
+    ; no, draw the game then
+    cmp byte [rel net_role], 0
+    je .skip_network
+    call poll_network_events     
+.skip_network:
+    call render_playfield
+    call swap_buffers               
+    mov byte [rel cursor_is_saved], 0    
+    jmp .save_mouse_state
+
+.menu_click_post:
+    ; yes, but it changed the game state, skip drawing for a while
+    cmp byte [rel in_menu], 0
+    je .save_mouse_state
+    
+    ; yes, redraw
+    call render_main_menu
+    call swap_buffers
+    mov byte [rel cursor_is_saved], 0  
+
+.save_mouse_state:
+    mov byte [rel prev_lmb_state], al
+    ; copy background from below cursor
+    call restore_cursor_background
+    
+    ; embed the new cursor into the back
+    mov rcx, [rel saved_cursor_x]
+    mov rdx, [rel saved_cursor_y]
+    call push_cursor_region
+
+    ; save the background below the cursor
+    movzx rcx, dword [rel mouse_x]
+    movzx rdx, dword [rel mouse_y]
+    mov [rel saved_cursor_x], rcx
+    mov [rel saved_cursor_y], rdx
+    call save_cursor_background
+    mov byte [rel cursor_is_saved], 1
+
+    ; draw the cursor onto the backbuffer
+    call draw_cursor 
+
+    ; draw the new cursor to the physical screen
+    movzx rcx, dword [rel mouse_x]
+    movzx rdx, dword [rel mouse_y]
+    call push_cursor_region
+
+.done:
+    pop r15
+    pop r14
+    pop rbp
     ret

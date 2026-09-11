@@ -224,48 +224,41 @@ efi_main:
 
     LOG "Entering interactive mode."
     call init_mouse
-    
     mov rcx, [rel mouse_ptr]
     mov rax, [rcx + 16]                 
-    mov [rel mouse_event_array], rax
+    mov [rel wait_event_array], rax
 
-    call run_main_menu
-    
-    LOG "Initializing the game."
-
-
-    call calculate_board_layout
-
-    call render_playfield
-
-    call update_match_state
-    
+    ; Set initial state and force the first frame draw
+    mov byte [rel in_menu], MENU_STATE_MAIN
+    call render_main_menu
     call swap_buffers
-    
-    
-    jmp .main_loop
 
 .main_loop:
-
-    mov rcx, 1                           
-    lea rdx, [rel mouse_event_array]     
-    lea r8, [rel event_index]            
-    mov rbx, [rel boot_services_ptr]
-
-    sub rsp, 32
-    call [rbx + EFI_BOOT_SERVICES.WaitForEvent]                     
-    add rsp, 32
+;     ; how many events are pending?
+;     mov rcx, 1           
+;     cmp qword [rel wait_event_array + 8], 0
+;     je .do_wait ; no network event, proceed
+;     mov rcx, 2 ; two events incoming, expect both of them    
+; .do_wait:            
+;     lea rdx, [rel wait_event_array]     
+;     lea r8, [rel event_index]            
+;     mov rbx, [rel boot_services_ptr]
+;     sub rsp, 32
+;     call [rbx + EFI_BOOT_SERVICES.WaitForEvent]                     
+;     add rsp, 32
     
-    ; Trap wake-up errors
-    test rax, rax
-    ; let it try again
-    jnz .main_loop
+;     test rax, rax
+;     jnz .main_loop
 
+    ; Give more control to the I/O handlers
     call process_mouse_input
 
-    ; polling hook would go here
+    ; network polling (skip if offline)
+    cmp byte [rel net_role], NET_ROLE_OFFLINE
+    je .main_loop
+    call poll_network_events
 
-    jmp .main_loop
+    jmp .main_loop 
 
 .error_allocation:
     LOG "Failed to allocate memory."
@@ -392,11 +385,17 @@ data_rva equ text_rva + text_vsize
     board_x dd 0
     board_y dd 0
 
+    ; async events
+    align 8
+    wait_event_array:
+        dq 0 ; mouse
+        dq 0 ; network
+
     ; mouse ptrs
     mouse_ptr dq 0
     mouse_x   dd 400    ; Starting X coordinate
     mouse_y   dd 300    ; Starting Y coordinate
-    mouse_event_array dq 0
+    ; mouse_event_array dq 0
     event_index       dq 0
 
     ; handle detection
@@ -418,57 +417,18 @@ data_rva equ text_rva + text_vsize
     cursor_is_saved  db 0           ; Flag: 0 = No, 1 = Yes
     cursor_size      equ 10         ; 32x32 area
 
-    ; networking
-    tcp4_sb_ptr dq 0        ; binding ptr
-    connection_ptr    dq 0  ; actual connection ptr
-    tcp4_handle dq 0        ; holds the hand(le) for child connection
-    tcp4_ptr    dq 0        ; protocol ptr
-    net_role    db 1        ; 0 = offline play, 1 = server, 2 = client
-    connection_status db 0      ; 0 = offline, 1 = pending handshake, 2 = connected
-
-    align 8
-    tcp4_config_host:
-        istruc EFI_TCP4_CONFIG_DATA
-            at .TypeOfService,     db 0
-            at .TimeToLive,        db 255
-            at .UseDefaultAddress, db 0
-            at .StationAddress,    db 10, 244, 244, 1       ; 10.244.244.1/30
-            at .SubnetMask,        db 255, 255, 255, 252
-            at .StationPort,       dw 27015
-            at .RemoteAddress,     db 0, 0, 0, 0
-            at .RemotePort,        dw 0
-            at .ActiveFlag,        db 0          ; LISTEN
-            at .ControlOption,     dq 0
-        iend
-
-    align 8
-    tcp4_config_join:
-        istruc EFI_TCP4_CONFIG_DATA
-            at EFI_TCP4_CONFIG_DATA.TypeOfService,     db 0
-            at EFI_TCP4_CONFIG_DATA.TimeToLive,        db 255
-            at EFI_TCP4_CONFIG_DATA.UseDefaultAddress, db 0
-            at EFI_TCP4_CONFIG_DATA.StationAddress,    db 10, 244, 244, 2      ; 10.244.244.2/30
-            at EFI_TCP4_CONFIG_DATA.SubnetMask,        db 255, 255, 255, 252
-            at EFI_TCP4_CONFIG_DATA.StationPort,       dw 27015
-            at EFI_TCP4_CONFIG_DATA.RemoteAddress,     db 10, 244, 244, 1
-            at EFI_TCP4_CONFIG_DATA.RemotePort,        dw 27015
-            at EFI_TCP4_CONFIG_DATA.ActiveFlag,        db 1          ; CONNECT
-            at EFI_TCP4_CONFIG_DATA.ControlOption,     dq 0
-        iend
-
-    handshake_event  dq 0        ; EFI_EVENT 
-
-    align 8
-    token_handshake:
-        istruc EFI_TCP4_LISTEN_TOKEN  ; large enough to act as a Connection Token
-            at EFI_TCP4_LISTEN_TOKEN.CompletionToken, dq 0, 0
-            at EFI_TCP4_LISTEN_TOKEN.NewChildHandle,  dq 0
-        iend
+    ; networking 
+    %include "network_data.asm"
 
     ; main menu
-    in_menu db 1 ; 1: menu active, 0: in-game
+    MENU_STATE_IN_GAME equ 0
+    MENU_STATE_MAIN equ 1
+    MENU_STATE_AWAITING_CONNECTION equ 2
+    in_menu db MENU_STATE_MAIN ; 1: menu active, 0: in-game, 2: awaiting connection
     path_logo db "ASSETS/CHESS/LOGO.BMP;1", 0
     logo_ptr dq 0
+    str_awaiting  db "Oczekiwanie na połączenie...", 0
+    str_cancel    db "Anuluj", 0
    
 
     

@@ -133,6 +133,7 @@ update_mouse:
 ; ------------------------------------------------------------------------------
 ; handle_mouse_click
 ; Converts mouse coordinates to a 0x88 index and generates legal moves.
+; Happens to navigate the entire remainder of the UI too
 ; ------------------------------------------------------------------------------
 handle_mouse_click:
     push rbp
@@ -149,6 +150,29 @@ handle_mouse_click:
 
     mov r10, rcx        ; keep the mouse coords
     mov r11, r8      
+
+    cmp byte [rel in_menu], 2
+    jne .check_main_menu
+    
+    ; cancel btn check
+    mov eax, dword [rel screen_h]
+    shr eax, 1
+    mov edi, eax
+    add edi, 150                 ; top
+    cmp r8d, edi
+    jl .done
+    add edi, 50                  ; bottom
+    cmp r8d, edi
+    jge .done
+    
+    ; cancelled, revert to main menu
+    call network_teardown
+    mov byte [rel in_menu], MENU_STATE_MAIN
+    ; TCP abort will go here, eventually
+    jmp .done
+    
+
+.check_main_menu:
     
     cmp byte [rel in_menu], 1
     jne .in_game
@@ -170,7 +194,7 @@ handle_mouse_click:
     
     ; host btn
     mov edi, eax
-    sub edi, 100
+    ;sub edi, 100
     cmp r8d, edi
     jl .done
     add edi, 50
@@ -180,6 +204,7 @@ handle_mouse_click:
     ; join btn
     mov edi, eax
     cmp r8d, edi
+    add edi, 100
     jl .done
     add edi, 50
     cmp r8d, edi
@@ -187,7 +212,7 @@ handle_mouse_click:
     
     ; offline btn
     mov edi, eax
-    add edi, 100
+    add edi, 200
     cmp r8d, edi
     jl .done
     add edi, 50
@@ -196,16 +221,24 @@ handle_mouse_click:
     jmp .done
 
 .select_host:
-    mov byte [rel net_role], 1
-    mov byte [rel in_menu], 0
+    LOG "Server role picked."
+    mov byte [rel net_role], NET_ROLE_SERVER
+    ;mov byte [rel in_menu], MENU_STATE_AWAITING_CONNECTION      
+    call transition_to_network
     jmp .done
 .select_join:
-    mov byte [rel net_role], 2
-    mov byte [rel in_menu], 0
+    LOG "Client role picked."
+    mov byte [rel net_role], NET_ROLE_CLIENT
+    ;mov byte [rel in_menu], MENU_STATE_AWAITING_CONNECTION   
+    call transition_to_network
     jmp .done
 .select_offline:
-    mov byte [rel net_role], 0
-    mov byte [rel in_menu], 0
+    mov byte [rel net_role], NET_ROLE_OFFLINE
+    mov byte [rel in_menu], MENU_STATE_IN_GAME       
+    call calculate_board_layout           
+    call render_playfield                 
+    call swap_buffers                     
+    mov byte [rel cursor_is_saved], 0
     jmp .done
     
 .in_game:
@@ -409,29 +442,28 @@ process_mouse_input:
     mov r12b, byte [rel in_menu]      
     call handle_mouse_click
     
-    ; did the click happen inside the menu?
-    cmp r12b, 1
-    je .menu_click_post
-    
-    ; no, draw the game then
-    cmp byte [rel net_role], 0
-    je .skip_network
-    call poll_network_events     
-.skip_network:
+.menu_click_post:
+    cmp byte [rel in_menu], MENU_STATE_MAIN
+    je .draw_main
+    cmp byte [rel in_menu], MENU_STATE_AWAITING_CONNECTION
+    je .draw_awaiting
+
+.draw_game:
     call render_playfield
+    jmp .do_swap
+
+.draw_main:
+    call render_main_menu
+    jmp .do_swap
+
+.draw_awaiting:
+    call render_awaiting_screen
+
+.do_swap:  
     call swap_buffers               
     mov byte [rel cursor_is_saved], 0    
     jmp .save_mouse_state
 
-.menu_click_post:
-    ; yes, but it changed the game state, skip drawing for a while
-    cmp byte [rel in_menu], 0
-    je .save_mouse_state
-    
-    ; yes, redraw
-    call render_main_menu
-    call swap_buffers
-    mov byte [rel cursor_is_saved], 0  
 
 .save_mouse_state:
     mov byte [rel prev_lmb_state], al

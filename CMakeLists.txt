@@ -129,22 +129,52 @@ COMMENT "Tworzenie ISO UDF..."
 
 
 set(BIOS_PATH /usr/share/edk2-ovmf/x64/ovmf_custom.fd)
-add_custom_target(run_system DEPENDS compile_system
-COMMAND "killall" "qemu-system-x86_64" "||" "true" 
-COMMAND "qemu-system-x86_64"
-"-cpu" "qemu64"
-"-bios" "${BIOS_PATH}" 
-"-cdrom" "${CMAKE_SYSROOT}/../chessos.iso"
-"-device" "qemu-xhci"
-"-device" "usb-mouse"
-"-device" "e1000"
-"-device" "virtio-rng-pci"
-"-display" "gtk,show-tabs=on"
-"-chardev" "stdio,id=char0,logfile=serial.log,signal=off"
-"-serial" "chardev:char0"
-"-machine" "q35"
-"$<$<CONFIG:DEBUG>:-s>" # otwórz port 1234 dla debuggera
-"$<$<CONFIG:DEBUG>:-S>" # czekaj na zezwolenie od debuggera
-# "$<$<CONFIG:DEBUG>:-serial>" "$<$<CONFIG:DEBUG>:stdio>"
+set(QEMU_BASE_ARGS
+    "-cpu" "qemu64"
+    "-bios" "${BIOS_PATH}"
+    "-cdrom" "${CMAKE_SYSROOT}/../chessos.iso"
+    "-device" "qemu-xhci"
+    "-device" "usb-mouse"
+    "-device" "virtio-rng-pci"
+    "-display" "gtk,show-tabs=on"
+    "-machine" "q35"
+)
+add_custom_target(run_host DEPENDS compile_system
+    COMMAND "qemu-system-x86_64"
+    ${QEMU_BASE_ARGS}
+    # Utwórz sieć multicast, przydziel MAC z :01 na koniec
+    "-netdev" "socket,id=net0,mcast=230.0.0.1:1234"
+    "-device" "e1000,netdev=net0,mac=52:54:00:12:34:01"
+    "-chardev" "stdio,id=char0,logfile=serial_host.log,signal=off"
+    "-serial" "chardev:char0"
+    "$<$<CONFIG:DEBUG>:-s>"
+    "$<$<CONFIG:DEBUG>:-S>"
+)
+add_custom_target(run_client DEPENDS compile_system
+    COMMAND "qemu-system-x86_64"
+    ${QEMU_BASE_ARGS}
+    "-netdev" "socket,id=net0,mcast=230.0.0.1:1234"
+    # ta sama sieć, ale MAC z :02 na finiszu
+    "-device" "e1000,netdev=net0,mac=52:54:00:12:34:02"
+    "-chardev" "stdio,id=char0,logfile=serial_client.log,signal=off"
+    "-serial" "chardev:char0"
 )
 
+add_custom_target(run_both DEPENDS compile_system
+    COMMAND "qemu-system-x86_64"
+    ${QEMU_BASE_ARGS}
+    "-netdev" "socket,id=net0,mcast=230.0.0.1:1234"
+    "-device" "e1000,netdev=net0,mac=52:54:00:12:34:02"
+    "-chardev" "stdio,id=char0,logfile=serial_client.log,signal=off"
+    "-serial" "chardev:char0" 
+    "&"
+    
+    COMMAND "qemu-system-x86_64"
+    ${QEMU_BASE_ARGS}
+    "-netdev" "socket,id=net0,mcast=230.0.0.1:1234"
+    "-device" "e1000,netdev=net0,mac=52:54:00:12:34:01"
+    "-chardev" "stdio,id=char1,logfile=serial_host.log,signal=off"
+    "-serial" "chardev:char1"
+    "$<$<CONFIG:DEBUG>:-s>"
+    "$<$<CONFIG:DEBUG>:-S>"
+)

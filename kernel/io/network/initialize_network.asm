@@ -330,7 +330,57 @@ network_teardown:
     mov byte [rel connection_status], CONNECTION_STATE_OFFLINE
     mov qword [rel tcp4_ptr], 0
     mov qword [rel tcp4_handle], 0
+    
+    .done:
+    add rsp, 32
+    pop rbp
+    ret
+    
+; ------------------------------------------------------------------------------
+; send_network_move
+; Sends a user-induced move over the network
+; Inputs: CL = origin, DL = destination, R8B = promotion
+; ------------------------------------------------------------------------------
+send_network_move:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 32
+    
+    ; load the move
+    mov byte [rel move_payload + MOVE_PAYLOAD.Origin], cl
+    mov byte [rel move_payload + MOVE_PAYLOAD.Destination], dl
+    mov byte [rel move_payload + MOVE_PAYLOAD.Promotion], r8b
 
+
+    movzx rcx, cx
+    movzx rdx, dx
+    LOG "Move queued for TX: %x -> %x", rcx, rdx
+    
+    ; we're not ready yet
+    mov rax, 0x8000000000000006
+    mov [rel token_tx + 8], rax
+
+    ; point the sent token to the move data instead of the sync command
+    lea rax, [rel move_payload]
+    mov [rel tx_packet_data + 24], rax
+
+    ; link the packet to the token
+    lea rax, [rel tx_packet_data]
+    mov [rel token_tx + 16], rax
+
+    ; transmit (+0x28)
+    mov rcx, [rel tcp4_ptr]
+    lea rdx, [rel token_tx]
+    mov rax, [rcx + 0x28]        
+    call rax
+
+    test rax, rax
+    jnz .error
+
+    jmp .done
+
+.error:
+    LOG "Move TX Failed! Code: %x", rax
 .done:
     add rsp, 32
     pop rbp

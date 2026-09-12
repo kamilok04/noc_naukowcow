@@ -384,6 +384,7 @@ data_rva equ text_rva + text_vsize
     tile_size dd 0
     board_x dd 0
     board_y dd 0
+    local_color dd 0 ; 0: white on bottom, 1: black on bottom
 
     ; async events
     align 8

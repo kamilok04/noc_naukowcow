@@ -52,6 +52,19 @@
     ; tx data
     sync_payload db 0xAA, 0, 0
 
+    struc MOVE_PAYLOAD
+        .Origin resb 1
+        .Destination resb 1
+        .Promotion resb 1
+    endstruc
+
+    move_payload:
+        istruc MOVE_PAYLOAD
+            at .Origin, db 0
+            at .Destination, db 0
+            at .Promotion, db 0
+        iend
+    
 
     ; RX/TX tokens
     align 8
@@ -62,27 +75,42 @@
         db 1 ; send NOW
         db 0 ; but not urgently
         dw 0 ; pad
-        dd 1 ; 1 byte of data
+        dd 3 ; 3 bytes of data (a move)
         dd 1 ; single fragment
         dd 0 ; pad
-        dd 1 ; the first fragment is 1 byte long
+        dd 3 ; the first (and last) fragment is 3 byte long
         dd 0 ; pad
-        dq sync_payload ; actual data
+        dq sync_payload ; actual data, payload is the default, this will be changed
 
     align 8
     rx_packet_data:
     db 0 ; not urgent
     db 0, 0, 0 ; 3 bytes padding
-    dd 1 ; 1 byte of data
+    dd 3 
     dd 1 ; 1 fragment
     dd 0 ; pad
-    dd 1 ; the first fragment is 1 byte long
+    dd 3
     dd 0 ; pad
     dq rx_data ; actual data buffer pointer
 
-    ; RX buffer (for an incoming "sync" command)
+    ; rx data (sync/move)
     rx_buffer dq 0 
-    rx_data   db 0
+    rx_data:
+        istruc MOVE_PAYLOAD
+            at .Origin, db 0
+            at .Destination, db 0
+            at .Promotion, db 0
+        iend
+
+    is_remote_move db 0 ; 1 = over the net, 0 = made by the player present here
+
+    last_local_move:
+        istruc MOVE_PAYLOAD
+            at .Origin,      db 0
+            at .Destination, db 0
+            at .Promotion,   db 0
+        iend
+
     
 
     align 8

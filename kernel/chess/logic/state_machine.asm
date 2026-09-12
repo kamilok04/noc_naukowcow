@@ -15,6 +15,18 @@ the_chess_state_machine:
     ; immediately skip the promo click handler when possible
     ; an invalid click cannot possibly promote a pawn
 
+    ; net logic: only control your color, ever
+    cmp byte [rel net_role], NET_ROLE_OFFLINE
+    je .skip_lock
+    cmp byte [rel is_remote_move], 1
+    je .skip_lock                    ; the engine itself is allowed, though
+    
+    mov bl, byte [rel current_color]
+    cmp bl, byte [rel local_color]
+    jne .cancel_selection
+
+.skip_lock:
+
     lea rbx, [rel board]
     mov cl, byte [rbx + r8]          ; CL = piece ID
     test cl, cl
@@ -63,6 +75,11 @@ the_chess_state_machine:
 .execute_move:
     lea rbx, [rel board]
     movzx rdx, al                    ; rdx: starting square
+
+    ; copy to be sent over the network
+    mov byte [rel last_local_move + MOVE_PAYLOAD.Origin], dl
+    mov byte [rel last_local_move + MOVE_PAYLOAD.Destination], r8b
+    mov byte [rel last_local_move + MOVE_PAYLOAD.Promotion], 0
     
     ; move the piece
     mov cl, byte [rbx + rdx]
@@ -327,6 +344,16 @@ promotion_interrupt_resolved:
 
 
 .change_color:
+    cmp byte [rel net_role], NET_ROLE_OFFLINE
+    je .skip_tx
+    cmp byte [rel is_remote_move], 1
+    je .skip_tx                      ; DO NOT bounce network moves back!
+    
+    mov cl, byte [rel last_local_move + MOVE_PAYLOAD.Origin]
+    mov dl, byte [rel last_local_move + MOVE_PAYLOAD.Destination]
+    mov r8b, byte [rel last_local_move + MOVE_PAYLOAD.Promotion]
+    call send_network_move
+.skip_tx:
     ; flip the color byte
     xor byte [rel current_color], 1
 

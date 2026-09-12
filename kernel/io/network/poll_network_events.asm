@@ -83,6 +83,10 @@ poll_network_events:
     ; client is allowed in, the game's initialize 
     LOG "Attempting sync."
     call send_sync_packet
+
+    LOG "Listening for client data."
+    call queue_network_rx
+
     jmp .done
 
 .error:
@@ -122,8 +126,6 @@ poll_network_events:
     ; connected and in menu?
     cmp byte [rel connection_status], CONNECTION_STATE_CONNECTED
     jne .done
-    cmp byte [rel in_menu], MENU_STATE_IN_GAME
-    je .done ; in-game, don't reinitialize
 
     ; what arrived?
     mov rcx, [rel rx_event]
@@ -140,12 +142,69 @@ poll_network_events:
     jnz .error
 
     ; is it the sync byte?
-    cmp byte [rel rx_data], 0xAA
-    je .sync_ok                       ; nah
+    cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xAA
+    je .sync_ok                     ; nah
 
-    mov dword [rel rx_packet_data + 4], 1
-    mov dword [rel rx_packet_data + 16], 1
-    mov byte [rel rx_data], 0
+    ; is it the reset command?
+    cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xBB
+    je .remote_reset
+
+    ; Filter out ACKs
+    ; 0x00 -> 0x00, which will never be a valid move
+    mov al, byte [rel rx_data + MOVE_PAYLOAD.Origin]
+    or al, byte [rel rx_data + MOVE_PAYLOAD.Destination]
+    jz .rearm_rx
+
+    ;LOG "Remote move incoming"
+    mov byte [rel is_remote_move], 1
+
+
+    ; this is the remote move logic
+    ; the network-connected opponent set this phase
+
+    push rax
+    push rbx
+    push rcx
+    movzx rax, byte [rel rx_data + MOVE_PAYLOAD.Origin]
+    movzx rbx, byte [rel rx_data + MOVE_PAYLOAD.Destination]
+    movzx rcx, byte [rel rx_data + MOVE_PAYLOAD.Promotion]
+    LOG "Incoming move: %x -> %x, promoting to %x", rax, rbx, rcx
+    pop rcx
+    pop rbx
+    pop rax
+
+
+    movzx r8, byte [rel rx_data + MOVE_PAYLOAD.Origin]
+    mov byte [rel selected_square], 0xFF
+    call the_chess_state_machine
+
+    ; set the move
+    movzx r8, byte [rel rx_data + MOVE_PAYLOAD.Destination]
+    call the_chess_state_machine
+
+    ; has there been a promotion?
+    cmp byte [rel promotion_pending], 1
+    jne .rearm_rx
+    
+    ; skip the UI (the user doesn't get a chance at trying to move the enemy piece)
+    movzx rbx, byte [rel promotion_sq]
+    mov al, byte [rel rx_data + MOVE_PAYLOAD.Promotion]
+    lea rcx, [rel board]
+    mov byte [rcx + rbx], al
+    mov byte [rel promotion_pending], 0
+    
+    ; resume logic, check against vital stuff
+    call promotion_interrupt_resolved 
+
+.rearm_rx:
+    mov byte [rel is_remote_move], 0         ; unlock TX
+    mov dword [rel rx_packet_data + 4], 3
+    mov dword [rel rx_packet_data + 16], 3
+    ; mov byte [rel rx_data], 0
+
+    call render_playfield
+    call swap_buffers
+    mov byte [rel cursor_is_saved], 0
 
     call queue_network_rx
     jmp .done
@@ -159,7 +218,19 @@ poll_network_events:
     mov byte [rel cursor_is_saved], 0     
     mov byte [rel in_menu], MENU_STATE_IN_GAME
     
-    ; actual chess move handling here
+    jmp .rearm_rx
+
+.remote_reset:
+    LOG "Resetting the game per remote request."
+    xor byte [rel local_color], 1    ; swap visual perspective
+    call reset_game                  ; reset the memory state
+    
+    ; force the UI to reflect the reset immediately
+    call render_playfield
+    call swap_buffers
+    mov byte [rel cursor_is_saved], 0
+
+    jmp .rearm_rx
 
 .done:
     add rsp, 40

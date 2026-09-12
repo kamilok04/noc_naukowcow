@@ -157,6 +157,15 @@ _draw_valid_moves:
 .highlight_loop:
     movzx eax, byte [rsi + rcx - 1]
 
+    ; flip rendering perspective based on player's color
+    cmp byte [rel local_color], 1
+    jne .skip_flip_vm
+    mov rbx, 0x77
+    sub rbx, rax
+    mov rax, rbx
+
+.skip_flip_vm:
+
     mov rbx, rax
     and rbx, 7                       
     imul rbx, r13                    ; col * tile_size
@@ -204,7 +213,7 @@ _draw_valid_moves:
 _draw_pieces:
     push rbp
     mov rbp, rsp
-    push r12            ; R12 = square index (0-0x77)
+    push r12            ; R12 = logical square index (0-0x77)
     push r8
     push r9
     xor r12, r12
@@ -216,11 +225,27 @@ _draw_pieces:
     test r12, 0x88      
     jnz .next_square    ; out of bounds
 
-    mov rax, r12
-    shr rax, 4          ; row = index/16
+    ; client-side logic
+    ; flip all piece positions if playing as black
+    ; R12 contains logical index, move calculation is based on that
+    ; R11 contains visual index, this is what the player will see.
+
+    ; for white, R11 == R12
+    ; for black, R11 == 0x77 - R12
+
+    mov r11, r12
+    cmp byte [rel local_color], 1 ; 1 -> black
+    jne .no_flip_p
+    mov r11, 0x77
+    sub r11, r12
+
+.no_flip_p:
+
+    mov rax, r11
+    shr rax, 4          ;  (visual) row = index/16
     
-    mov rdx, r12
-    and rdx, 7          ; col = index%7
+    mov rdx, r11
+    and rdx, 7          ; (visual) col = index%7
     
     ; get screen coords
     mov r8d, dword [rel tile_size]
@@ -235,7 +260,7 @@ _draw_pieces:
     add r8, r9        ; r8 = screen y
     
     lea rbx, [rel board]
-    movzx r9, byte [rbx + r12]   ; yank straight outta the board
+    movzx r9, byte [rbx + r12]   ; yank straight outta the board using the logical index
     
     test r9, r9
     jz .next_square              ; 0 -> empty square
@@ -290,6 +315,18 @@ cmp byte [rel promotion_pending], 1
 
     mov r10d, dword [rel tile_size]  ; dynamic size
 
+    ; client-based logic
+    ; flip position of the menu based on the perspective
+
+    movzx rax, byte [rel promotion_sq]
+    cmp byte [rel local_color], 1
+    jne .no_flip_promo
+    mov rbx, 0x77
+    sub rbx, rax
+    mov rax, rbx
+
+.no_flip_promo:
+
     ; get coords
     movzx rax, byte [rel promotion_sq]
     mov rcx, rax
@@ -303,6 +340,10 @@ cmp byte [rel promotion_pending], 1
     
     mov r12, rcx                     ; R12 = copy of X
     mov r13, rax                     ; R13 = copy of Y
+
+    ; which way should the menu go?
+    mov r15b, byte [rel current_color]
+    xor r15b, byte [rel local_color] ; 1: up, 0 : down
 
     ; draw a bkgd
     mov rdi, [rel backbuffer_ptr]
@@ -326,6 +367,11 @@ cmp byte [rel promotion_pending], 1
 
     mov r14, 4                    
     mov r11d, dword [rel tile_size]  ; step size
+
+    cmp r15b, 0
+    je .pick_sprites
+    neg r11
+.pick_sprites:
     
     cmp byte [rel current_color], 0
     jne .setup_black_sprites

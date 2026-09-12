@@ -27,12 +27,14 @@ resolve_promotion:
     movzx rcx, byte [rel promotion_sq]
     lea rbx, [rel board]
     mov byte [rbx + rcx], dl
+
+    ; prepare for sending over network
+    mov byte [rel last_local_move + MOVE_PAYLOAD.Promotion], dl
     
     ; unpause game logic
     mov byte [rel promotion_pending], 0
     
-    ; 5. Finalize the turn
-    ; (Call whatever routine you use to toggle current_color and update highlights here)
+    ; finalize the turn
     call promotion_interrupt_resolved
     pop rdx
     pop rcx

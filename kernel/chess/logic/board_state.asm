@@ -42,6 +42,11 @@ board:
     times 64 db 0 
     db  1,  1,  1,  1,  1,  1,  1,  1, 0, 0, 0, 0, 0, 0, 0, 0  ; 
     db  4,  2,  3,  5,  6,  3,  2,  4, 0, 0, 0, 0, 0, 0, 0, 0  ; white
+
+; Niektóre pola to komendy.
+; np. ruch 0xAA -> 0xAA (J-2 -> J-2) przeładowuje assety na komputerze docelowym,
+; 0xBB -> 0xBB (K-3 -> K-3) resetuje stan gry.
+
 ; board:
 ;     db 9, 11, 8, 8, 10, 12, 10, 9, 0, 0, 0, 0, 0, 0, 0, 0
 ;     db 7, 7, 7, 7, 7, 7, 7, 7, 0, 0, 0, 0, 0, 0, 0, 0

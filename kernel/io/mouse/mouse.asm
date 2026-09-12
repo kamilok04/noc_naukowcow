@@ -223,12 +223,14 @@ handle_mouse_click:
 .select_host:
     LOG "Server role picked."
     mov byte [rel net_role], NET_ROLE_SERVER
+    mov byte [rel local_color], 0
     ;mov byte [rel in_menu], MENU_STATE_AWAITING_CONNECTION      
     call transition_to_network
     jmp .done
 .select_join:
     LOG "Client role picked."
     mov byte [rel net_role], NET_ROLE_CLIENT
+    mov byte [rel local_color], 1
     ;mov byte [rel in_menu], MENU_STATE_AWAITING_CONNECTION   
     call transition_to_network
     jmp .done
@@ -261,11 +263,21 @@ handle_mouse_click:
     cmp r8d, edi
     jge .done                     ; too far below
     
-    call reset_game               ; ok; restart
-    jmp .done                     ; block all else, the game is done
-
     
-.game_is_active:
+    ; wydaj polecenie restartu
+    cmp byte [rel net_role], NET_ROLE_OFFLINE
+    je .do_reset
+    
+    mov cl, 0xBB                  ; 0xBB = pole-komenda
+    mov dl, 0xBB
+    xor r8b, r8b
+    call send_network_move
+.do_reset:
+    xor byte [rel local_color], 1 ; podmień kolory
+    call reset_game               ; ok; restart
+    jmp .done                     ; nie pozwalaj na nic poza kliknięciem przycisku "rewanż"
+
+    .game_is_active:
     mov rdx, r11 
     call check_promotion_click
     test rax, rax
@@ -302,6 +314,15 @@ handle_mouse_click:
     add eax, ebx                     ; + column
     mov r8, rax                      ; = index
 
+    ; client-based logic
+    ; mirror the square if black pieces are on the bottom
+    cmp byte [rel local_color], 1
+    jne .no_flip_click
+    mov r9, 0x77
+    sub r9, r8
+    mov r8, r9
+.no_flip_click:
+
     call the_chess_state_machine
     jmp .done
     
@@ -326,6 +347,15 @@ handle_mouse_click:
 check_promotion_click:
     cmp byte [rel promotion_pending], 1
     jne .not_intercepted
+
+    ; mirror the square based on client perspective
+    movzx rax, byte [rel promotion_sq]
+    cmp byte [rel local_color], 1
+    jne .no_flip_pclick
+    mov rbx, 0x77
+    sub rbx, rax
+    mov rax, rbx
+.no_flip_pclick:
     
     movzx rax, byte [rel promotion_sq]
     mov r8, rax
@@ -352,6 +382,8 @@ check_promotion_click:
     
     ; direction
     mov bl, byte [rel current_color]
+    xor bl, byte [rel local_color]
+
     test bl, bl
     jnz .black_bounds
     

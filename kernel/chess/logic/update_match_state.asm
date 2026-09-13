@@ -78,12 +78,30 @@ update_match_state:
 
 .game_active:
     mov byte [rel match_state], 0
-    ; LOG "Game on."
-
-.cleanup:
     ; Clear the generator so that the next game/next move works from a clean state
     mov byte [rel selected_square], 0xFF
     mov byte [rel valid_moves_count], 0
+
+    ; the move has been made, sync the boards
+    ; otherwise SAN would be one move behind
+    lea rsi, [rel board]
+    lea rdi, [rel sandbox_board]
+    mov rcx, 128                     ; 0x88 board is 128 bytes
+    rep movsb
+
+    
+
+    call verify_king_safety
+    mov byte [rel is_in_check], al ; 1 -> check
+    jmp .exit_update
+    ; LOG "Game on."
+
+.cleanup:
+    ; only used on game conclusion
+    mov byte [rel selected_square], 0xFF
+    mov byte [rel valid_moves_count], 0
+
+.exit_update:
     pop r8
     pop rdx
     pop rcx

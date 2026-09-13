@@ -16,6 +16,7 @@ render_playfield:
     call _draw_pieces
     call _draw_promotion_menu
     call draw_endgame_popup
+    call _draw_transcript
 
     mov rsp, rbp
     pop rbp
@@ -516,19 +517,176 @@ calculate_board_layout:
     add ecx, ebx
     mov dword [rel btn_y], ecx
     
-    ; text_scale = max(1, tile_size / 48) 
+
+calculate_transcript_layout:
+    ; find the right sides' width
+    mov eax, dword [rel screen_w] 
+    mov ebx, dword [rel board_x]
+    mov ecx, [rel tile_size]
+    shl ecx, 3
+    add ebx, ecx
+    sub eax, ebx                             ; EAX = total width of the right panel
+
+    ; allocate space: 2/3 for transcript, 1/3 for future buttons
+    mov ecx, 3
     xor edx, edx
-    mov ebx, 48
-    div ebx
-    cmp eax, 1
-    jge .save_scale
-    mov eax, 1
+    div ecx
+    imul eax, 2                              ; EAX = max transcript width
     
-.save_scale:
+    ; divide by 160 (5 + 8 + 7) * 8 -- row width
+    mov ecx, 160
+    xor edx, edx
+    div ecx                                  ; EAX = proposed scale
+    
+    ; if a result is non-satisfactory, plug 1 in instead
+    cmp eax, 1
+    jge .set_scale
+    mov eax, 1
+
+.set_scale:
+    
     mov dword [rel text_scale], eax
 
+    ; starting x (right board edge + padding, hardcoded 24px here)
+    add ebx, 24
+    mov dword [rel transcript_x], ebx
+
+    ; calculate row count
+    ; Row height = (text_scale * 16) + 4px vertical padding
+    mov ecx, eax
+    shl ecx, 4
+    add ecx, 4
+    
+    mov eax, dword [rel tile_size]
+    shl eax, 3          
+    xor edx, edx
+    div ecx                                  ; line count = board hgt / row hgt
+    mov dword [rel transcript_lines], eax    ; Save the row limit!   
     pop rdx
     pop rcx
     pop rbx
     pop rax
+    ret
+; ------------------------------------------------------------------------------
+; _draw_transcript
+; Renders the transcript buffer in two fixed-width columns.
+; ------------------------------------------------------------------------------
+_draw_transcript:
+    push rbp
+    mov rbp, rsp
+    push rbx
+
+    movzx eax, word [rel transcript_count]
+    test eax, eax
+    jz .done
+
+    ; auto-scrolling
+    inc eax
+    shr eax, 1                      
+    mov ebx, dword [rel transcript_lines]
+    cmp eax, ebx
+    jle .no_scroll                  
+    
+    sub eax, ebx                    
+    mov word [rel transcript_scroll], ax
+    jmp .scroll_set
+.no_scroll:
+    mov word [rel transcript_scroll], 0
+.scroll_set:
+
+    ; initialize memory
+    mov dword [rel tr_row], 0
+    movzx eax, word [rel transcript_scroll]
+    mov dword [rel tr_move], eax
+    
+.row_loop:
+    mov eax, dword [rel tr_row]
+    cmp eax, dword [rel transcript_lines]
+    jge .done                               
+
+    mov eax, dword [rel tr_move]
+    shl eax, 1                              
+    cmp ax, word [rel transcript_count]
+    jge .done
+
+    ; calculate y
+    mov eax, dword [rel text_scale]
+    shl eax, 4                              
+    add eax, 4                              
+    imul eax, dword [rel tr_row]
+    add eax, dword [rel board_y]            
+    mov dword [rel tr_y], eax                           
+
+    ;  build the move no. string
+    mov eax, dword [rel tr_move]
+    inc eax                                 
+    mov dword [rel move_num_str], 0x2E202020 
+    mov byte [rel move_num_str + 4], 0
+    lea rdi, [rel move_num_str + 2]         
+    mov ecx, 10
+.itoa:
+    xor edx, edx
+    div ecx
+    add dl, '0'
+    mov byte [rdi], dl
+    dec rdi                                 
+    test eax, eax
+    jz .itoa_done
+    lea r8, [rel move_num_str]
+    cmp rdi, r8
+    jge .itoa
+.itoa_done:
+
+    ; move no.
+    mov ecx, dword [rel transcript_x]       
+    mov edx, dword [rel tr_y]                           
+    lea r8, [rel move_num_str]
+    mov r10d, 0x00FFFFFF                    
+    mov r13d, dword [rel text_scale]
+    call draw_string                        
+
+    ; white's move
+    mov eax, dword [rel tr_move]
+    shl eax, 4                              
+    lea r8, [rel transcript_buffer]
+    add r8, rax
+    
+    mov ecx, dword [rel text_scale]
+    imul ecx, 40                            
+    add ecx, dword [rel transcript_x]
+    mov edx, dword [rel tr_y]
+    mov r10d, 0x00FFFFFF                    
+    mov r13d, dword [rel text_scale]
+    call draw_string
+
+    ; black's move
+    mov eax, dword [rel tr_move]
+    shl eax, 1
+    inc eax                                 
+    cmp ax, word [rel transcript_count]
+    jge .next_row                           
+    
+    mov eax, dword [rel tr_move]
+    shl eax, 4
+    add eax, 8                              
+    lea r8, [rel transcript_buffer]
+    add r8, rax
+
+    mov ecx, dword [rel text_scale]
+    imul ecx, 104                           
+    add ecx, dword [rel transcript_x]
+    mov edx, dword [rel tr_y]
+    mov r10d, 0x00FFFFFF                    
+    mov r13d, dword [rel text_scale]
+    call draw_string
+
+.next_row:
+    inc dword [rel tr_row]
+    inc dword [rel tr_move]
+    jmp .row_loop
+
+.done:
+    pop rbx
+    mov rsp, rbp
+    pop rbp
     ret

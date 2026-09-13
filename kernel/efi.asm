@@ -306,6 +306,7 @@ efi_main:
 %include "initialize_network.asm"
 %include "poll_network_events.asm"
 %include "main_menu.asm"
+%include "san_generator.asm"
 
 ; Pad .text to 8KB
 align 8192, db 0
@@ -431,6 +432,41 @@ data_rva equ text_rva + text_vsize
     str_awaiting  db "Oczekiwanie na połączenie...", 0
     str_cancel    db "Anuluj", 0
    
+    ; transcript
+    transcript_x dd 0
+    transcript_y dd 0
+    transcript_w dd 0
+    transcript_h dd 0
+    transcript_lines dd 0       ; max # visible lines that fit on screen
+    
+    transcript_count dw 0       ; # of half-moves played
+    transcript_scroll dw 0      ; logical offset
+    
+    ; assuming 256 full moves here
+    ; this better be enough
+    transcript_buffer times 4096 db 0
+
+    ; SAN engine
+    san_temp_str times 8 db 0x20   ; holds the string
+    
+    san_ambig_file db 0            ; 1 if another piece shares the origin file
+    san_ambig_rank db 0            ; 1 if another piece shares the origin rank
+    
+    backup_moves_list times 128 db 0    ; keep the valid moves list separate
+                                        ; we cannot use the engine-integrated version
+                                        ; as then ambiguity resolution would mess with UI move detection
+    backup_moves_count db 0
+    backup_selected db 0
+    move_num_str times 8 db 0 ; for the move number
+    
+    ; Piece ID - SAN type mapping
+    ; panws don't get a letter
+    san_letters db "  NBRQK NBRQK"
+
+    ; keep the transcript data in memory
+    tr_row dd 0
+    tr_move dd 0
+    tr_y dd 0
 
     
     ; GUIDs

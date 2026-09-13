@@ -80,6 +80,13 @@ the_chess_state_machine:
     mov byte [rel last_local_move + MOVE_PAYLOAD.Origin], dl
     mov byte [rel last_local_move + MOVE_PAYLOAD.Destination], r8b
     mov byte [rel last_local_move + MOVE_PAYLOAD.Promotion], 0
+
+    mov cl, byte [rbx + rdx]         ; CL = moving piece ID
+    mov r10b, byte [rbx + r8]        ; R10B = target piece ID
+    call check_san_ambiguity
+    mov cl, byte [rbx + rdx]
+    mov r10b, byte [rbx + r8]
+    call build_san_string
     
     ; move the piece
     mov cl, byte [rbx + rdx]
@@ -359,6 +366,8 @@ promotion_interrupt_resolved:
 
 .update_game_state:
     call update_match_state
+    call append_san_evaluations
+    call save_san_to_buffer
 
     jmp .done
 

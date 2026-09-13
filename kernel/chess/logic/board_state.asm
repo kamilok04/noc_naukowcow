@@ -139,6 +139,7 @@ promotion_lookup_b db 11, 10, 9, 8
 ; general game state
 ; 0 = active, 1 = white wins, 2 = black wins, 3 = stalemate
 match_state db 0
+is_in_check db 0 ; 1 if the last move triggered a check. Used for transcripts.
 
 ; endgame GUI
 POPUP_W         equ 300
@@ -167,7 +168,7 @@ popup_h    dd 0
 btn_w      dd 0
 btn_h      dd 0
 
-text_scale dd 1
+text_scale dd 3
 
 COLOR_POPUP_BG  equ 0x00222222   ; Dark Slate
 COLOR_BTN_BG    equ 0x0055AA55   ; Restart Button Green

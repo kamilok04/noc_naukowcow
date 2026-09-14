@@ -93,7 +93,7 @@ update_mouse:
 
 .check_x_max:
     mov edi, dword [rel screen_w]
-    sub edi, 10                ; Subtract cursor width (10px) so it doesn't clip
+    sub edi, 32               ; Subtract cursor width so it doesn't clip
     cmp ecx, edi
     jle .save_x
     mov ecx, edi               ; Clamp to max width
@@ -113,7 +113,7 @@ update_mouse:
 
 .check_y_max:
     mov edi, dword [rel screen_h]
-    sub edi, 10                ; Subtract cursor height (10px)
+    sub edi, 32                ; Subtract cursor height (10px)
     cmp ecx, edi
     jle .save_y
     mov ecx, edi               ; Clamp to max height

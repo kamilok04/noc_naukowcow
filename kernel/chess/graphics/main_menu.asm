@@ -73,7 +73,6 @@ render_main_menu:
     call draw_string
     
     ; draw cursor, swap buffers
-    call draw_cursor
     call swap_buffers
     
     mov rsp, rbp

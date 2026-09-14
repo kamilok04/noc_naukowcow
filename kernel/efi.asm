@@ -413,11 +413,13 @@ data_rva equ text_rva + text_vsize
     backbuffer_size dq 0
 
     ; cursor buffer
-    cursor_bg_buffer times 1024 db 0 
+    cursor_bg_buffer times 32 * 32 dd 0
     saved_cursor_x   dq 0
     saved_cursor_y   dq 0
     cursor_is_saved  db 0           ; Flag: 0 = No, 1 = Yes
-    cursor_size      equ 10         ; 32x32 area
+    cursor_size      equ 32
+    path_cursor db "ASSETS/CURSOR.BMP;1", 0
+    bmp_cursor dq 0
 
     ; networking 
     %include "network_data.asm"

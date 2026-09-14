@@ -332,12 +332,14 @@ draw_bitmap:
     pop rbp
     ret
 
-; Draw a 10x10 red square.
-; Intended to show where the mouse pointer currently is
-; but can be used anywhere
+; Draw a 32x32 mouse pointer
 draw_cursor:
     push rbp
     mov rbp, rsp
+    
+    mov r8, qword [rel bmp_cursor]
+    test r8, r8
+    jz .done                       ; Safety check: don't crash if BMP failed to load
     
     mov rdi, [rel backbuffer_ptr]
     mov rsi, [rel framebuffer_pitch]
@@ -345,12 +347,9 @@ draw_cursor:
     mov ecx, dword [rel mouse_x]   ; RCX = Start X
     mov edx, dword [rel mouse_y]   ; RDX = Start Y
     
-    mov r8, 10                     ; Width
-    mov r9, 10                     ; Height
-    mov r10d, 0x00FF0000           ; 32-bit Color (ARGB format: Red)
+    call draw_bitmap
     
-    call draw_rectangle
-    
+.done:
     pop rbp
     ret
 

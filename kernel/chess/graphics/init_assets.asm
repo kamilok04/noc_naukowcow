@@ -111,6 +111,11 @@ init_assets:
     call fopen
     mov rdx, [rax + FILE.BufferPtr]  
     mov [rel bmp_btn_back], rdx
+
+    lea rcx, [rel path_cursor]
+    call fopen
+    mov rdx, [rax + FILE.BufferPtr]
+    mov [rel bmp_cursor], rdx
     jmp .done
 
 

@@ -245,6 +245,10 @@ handle_mouse_click:
     
 .in_game:
     ; LOG "Mouse Y = %d", r8
+    call handle_ui_click ; UI goes first because transcript
+    test rax, rax
+    jnz .done
+
     cmp byte [rel match_state], 0
     je .game_is_active
     
@@ -526,5 +530,207 @@ process_mouse_input:
 .done:
     pop r15
     pop r14
+    pop rbp
+    ret
+
+; ------------------------------------------------------------------------------
+; handle_ui_click
+; Checks if the current mouse_x / mouse_y falls within any UI button.
+; Outputs: RAX = 1 if a button was clicked, RAX = 0 otherwise.
+; ------------------------------------------------------------------------------
+handle_ui_click:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push rcx
+    push rdx
+    push r8
+
+    mov ecx, dword [rel mouse_x]
+    mov edx, dword [rel mouse_y]
+
+    ; transcript back
+    lea r8, [rel btn_back_box]
+    call .check_collision
+    test rax, rax
+    jnz .clicked_back
+
+    ; transcript forward
+    lea r8, [rel btn_forward_box]
+    call .check_collision
+    test rax, rax
+    jnz .clicked_forward
+
+    ; other buttons don't count with the game done
+    cmp byte [rel match_state], 0
+    jne .done
+
+    ; and when offline
+    cmp byte [rel net_role], NET_ROLE_OFFLINE
+    je .done
+
+    ; 1/2
+    lea r8, [rel btn_draw_box]
+    call .check_collision
+    test rax, rax
+    jnz .clicked_draw
+
+    ; giveup
+    lea r8, [rel btn_giveup_box]
+    call .check_collision
+    test rax, rax
+    jnz .clicked_giveup
+
+    ; none of those
+    xor rax, rax
+    jmp .done
+
+; individual btn handlers
+
+.clicked_back:
+    ; if auto-scroll active, go back
+    mov ebx, dword [rel ui_manual_scroll]
+    cmp ebx, -1
+    jne .do_back    
+
+
+    ; disengage autoscrolling
+    movzx ebx, word [rel transcript_scroll]
+    
+.do_back:
+    test ebx, ebx
+    jz .handled                              ; @ the top
+    
+    dec ebx
+    mov dword [rel ui_manual_scroll], ebx
+    ; LOG "UI: Scrolled Transcript Back"
+    jmp .handled
+
+.clicked_forward:
+    mov ebx, dword [rel ui_manual_scroll]
+    cmp ebx, -1
+    je .handled                              ; auto-scroll is active, so this is the bottom, skip
+    
+    ; get the max offset
+    movzx eax, word [rel transcript_count]
+    shr eax, 1
+    mov ecx, dword [rel transcript_lines]
+    
+    cmp eax, ecx
+    jle .snap_to_auto                        ; none, engage auto-scroll instead
+    
+    sub eax, ecx                             ; EAX = max scroll offset
+    cmp ebx, eax
+    jge .snap_to_auto                        ; it's the bottom, engage auto-scroll now
+    
+    inc ebx
+    mov dword [rel ui_manual_scroll], ebx
+    ;LOG "UI: Scrolled Transcript Forward"
+    jmp .handled
+
+.snap_to_auto:
+    mov dword [rel ui_manual_scroll], -1
+    LOG "UI: Transcript Snapped to Auto-Scroll"
+    jmp .handled
+
+.clicked_draw:
+    mov ebx, dword [rel ui_action_state]
+    cmp ebx, ACTION_STATE_DEFAULT
+    je .init_draw_offer
+    cmp ebx, ACTION_STATE_SURRENDER
+    je .cancel_action            ; red 'X' cancels surrender
+    cmp ebx, ACTION_STATE_DRAW
+    je .confirm_draw_offer       ; green 'Check' confirms draw
+    cmp ebx, ACTION_STATE_INCOMING_DRAW
+    je .accept_draw              ; green 'Check' accepts incoming draw
+    jmp .handled
+
+.init_draw_offer:
+    mov dword [rel ui_action_state], ACTION_STATE_DRAW
+    jmp .handled
+    
+.confirm_draw_offer:
+    mov dword [rel ui_action_state], ACTION_STATE_DEFAULT
+    mov cl, 0xCC
+    mov dl, 0xCC
+    xor r8b, r8b
+    call send_network_move
+    LOG "UI: Sent Draw Offer"
+    jmp .handled
+    
+.accept_draw:
+    mov dword [rel ui_action_state], ACTION_STATE_DEFAULT
+    mov byte [rel match_state], 3 ; end game locally
+    mov cl, 0xCD
+    mov dl, 0xCD
+    xor r8b, r8b
+    call send_network_move
+    LOG "UI: Accepted Draw"
+    jmp .handled
+
+.clicked_giveup:
+    mov ebx, dword [rel ui_action_state]
+    cmp ebx, ACTION_STATE_DEFAULT
+    je .init_giveup
+    cmp ebx, ACTION_STATE_SURRENDER
+    je .confirm_giveup           ; green 'Check' confirms surrender
+    cmp ebx, ACTION_STATE_DRAW
+    je .cancel_action            ; red 'X' cancels draw offer
+    cmp ebx, ACTION_STATE_INCOMING_DRAW
+    je .cancel_action            ; red 'X' denies incoming draw
+    jmp .handled
+
+.init_giveup:
+    mov dword [rel ui_action_state], ACTION_STATE_SURRENDER
+    jmp .handled
+    
+.confirm_giveup:
+    mov dword [rel ui_action_state], ACTION_STATE_DEFAULT
+    ; opponent wins
+    mov al, byte [rel local_color]
+    xor al, 1
+    add al, 1
+    mov byte [rel match_state], al
+    mov cl, 0xCE
+    mov dl, 0xCE
+    xor r8b, r8b
+    call send_network_move
+    LOG "UI: Surrendered"
+    jmp .handled
+
+.cancel_action:
+    mov dword [rel ui_action_state], ACTION_STATE_DEFAULT
+    jmp .handled
+
+.handled:
+    mov rax, 1
+    jmp .done
+
+; check for mouse collision
+; ECX = mouse_x, EDX = mouse_y, R8 = box pointer
+.check_collision:
+    xor rax, rax
+    mov ebx, dword [r8]          
+    cmp ecx, ebx
+    jl .miss
+    add ebx, dword [r8 + 8]      
+    cmp ecx, ebx
+    jg .miss                     
+    mov ebx, dword [r8 + 4]      
+    cmp edx, ebx
+    jl .miss
+    add ebx, dword [r8 + 12]     
+    cmp edx, ebx
+    jg .miss                     
+    mov rax, 1                   ; hit
+.miss:
+    ret
+
+.done:
+    pop r8
+    pop rdx
+    pop rcx
+    pop rbx
+    mov rsp, rbp
     pop rbp
     ret

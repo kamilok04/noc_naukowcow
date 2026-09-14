@@ -90,6 +90,9 @@ draw_bitmap_scaled:
     push r14
     push r15
 
+    ; allocate cache space
+    sub rsp, 16
+
     mov r9, rdx
 
     ; parse the BMP Header
@@ -138,48 +141,64 @@ draw_bitmap_scaled:
 .row_loop:
     ; RDI = x Accumulator
     xor rdi, rdi                     
-    
     mov rax, rcx                     ; RAX = Screen X
-    mov r13d, dword [rel tile_size]                    
-
-.pixel_loop:
-    ; un-float to actual pixels
-    mov rdx, rbx                     ; RBX is safe! (Y accumulator)
-    shr rdx, 16
+    mov r13d, dword [rel tile_size]          
     
+    ; get source y  
+    ; R8 + (y * width_bytes) + (x * 4)
+    mov rdx, rbx
+    shr rdx, 16                         
+    imul rdx, r15                   ; RAX = y * row_bytes
+
+    mov [rbp - 128], rdx            ; voodoo time!
+                                    ; in the prologue, 15 registers are pushed
+                                    ; rbp doesn't count, though
+                                    ; 14 * 8 = (rbp -) 112
+                                    ; then another 16 bytes of cache were allocated
+                                    ; 112 + 16 = (rbp -) 128
+                                    ; this places slot 1 of assigned cache at [rbp - 128]
+                                    ; another slot is at [rbp - 120]
+
+                                    ; note: this math is RBP-relative
+                                    ; if it were, as usual, RSP-relative
+                                    ; then nested loops would throw the count off
+                                    ; RBP does not concern itself with what the method does
+
+                                    ; another voodoo note here: this call is *very* fast
+                                    ; I'm afraid the details are beyond my understanding,
+                                    ; but it has to do with near jumps [-128;127] of the x86 arch
+                                    ; disp8-based addressing can fit within the L1 cache,
+                                    ; while others cannot -- this is my guess
+
+    ; compute dest y
+    mov rdx, r9
+    imul rdx, rsi
+    mov [rbp - 120], rdx ; cache
+    
+.pixel_loop:
     mov r12, rdi                     ; RDI is X accumulator
     shr r12, 16
-    
-    ; source =  R8 + (y * width_bytes) + (x * 4)
-    push rax                         
-    mov rax, rdx
-    imul rax, r15                    ; RAX = y * row_bytes
+
     mov rdx, r12
     shl rdx, 2                       ; RDX = x * 4
-    sub rdx, rax                     ; RDX = (x * 4) - (y * row_bytes)
-    lea rax, [r8 + rdx]              ; RAX = addr
+    sub rdx, [rbp - 128]                     ; RDX = (x * 4) - (y * row_bytes)
+    lea rdx, [r8 + rdx]              ; RAX = addr
     
-    mov edx, dword [rax]             ; EDX = color
-    pop rax                          
+    mov edx, dword [rdx]            ; EDX = color
     
-    mov r12d, edx                    
+    mov r12d, edx               
     and r12d, 0x00FFFFFF              
     cmp r12d, COLOR_KEY          
     je .skip_pixel                   
     
     
     ; destination address = backbuffer + (y * pitch + x) * 4
-    push rax                         
-    push rdx
-    mov rax, r9                      
-    imul rax, rsi                    
-    add rax, [rsp + 8]               ; +x
-    shl rax, 2                       
-    add rax, [rel backbuffer_ptr]    ; RAX = dest
+    mov r14, [rbp - 120]              ; load cached y * pitch
+    add r14, rax                     ; + x
+    shl r14, 2                       ; * 4
+    add r14, [rel backbuffer_ptr]    ; RDX = dest
     
-    pop rdx
-    mov dword [rax], edx            
-    pop rax
+    mov dword [r14], edx
 
 .skip_pixel:
     add rdi, r10                     ; x acc+= step_x
@@ -200,6 +219,7 @@ draw_bitmap_scaled:
     pop r14                          
 
 .done:
+    add rsp, 16
     pop r15
     pop r14
     pop r13

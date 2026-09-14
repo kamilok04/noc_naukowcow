@@ -93,7 +93,7 @@ efi_main:
     
     LOG "The GOP protocol located succesfully."
     
-    call set_max_resolution
+   ; call set_max_resolution
 
     ; ask the framebuffer what it knows
     mov rbx, [rel gop_ptr]   
@@ -442,9 +442,9 @@ data_rva equ text_rva + text_vsize
     transcript_count dw 0       ; # of half-moves played
     transcript_scroll dw 0      ; logical offset
     
-    ; assuming 256 full moves here
+    ; assuming 512 full moves here
     ; this better be enough
-    transcript_buffer times 4096 db 0
+    transcript_buffer times 8192 db 0
 
     ; SAN engine
     san_temp_str times 8 db 0x20   ; holds the string

@@ -73,8 +73,12 @@ the_chess_state_machine:
     jmp .selection_phase
 
 .execute_move:
+    mov dword [rel ui_action_state], ACTION_STATE_DEFAULT ; move is made, deny whatever was done
+    mov dword [rel ui_manual_scroll], -1 ; engage auto-scroll for current transcript
     lea rbx, [rel board]
     movzx rdx, al                    ; rdx: starting square
+
+
 
     ; copy to be sent over the network
     mov byte [rel last_local_move + MOVE_PAYLOAD.Origin], dl
@@ -269,7 +273,10 @@ the_chess_state_machine:
     add rdx, 0x10
     mov byte [rbx + rdx], EMPTY
     jmp .ep_check_done
-
+    lea rsi, [rel board]
+    lea rdi, [rel sandbox_board]
+    mov rcx, 128                     ; 0x88 board is 128 bytes
+    rep movsb
 .black_is_ep:
     ; black pawn moving down
     ; the captured white pawn is 0x10 above the target.

@@ -17,6 +17,7 @@ render_playfield:
     call _draw_promotion_menu
     call draw_endgame_popup
     call _draw_transcript
+    call _draw_ui_buttons
 
     mov rsp, rbp
     pop rbp
@@ -562,6 +563,76 @@ calculate_transcript_layout:
     xor edx, edx
     div ecx                                  ; line count = board hgt / row hgt
     mov dword [rel transcript_lines], eax    ; Save the row limit!   
+
+
+    ; the remainder of the GUI
+
+    ; right panel total width (EAX)
+    mov eax, dword [rel screen_w]
+    mov ebx, dword [rel board_x]
+    mov ecx, dword [rel tile_size]
+    shl ecx, 3
+    add ebx, ecx
+    sub eax, ebx                             ; EAX = right panel width
+
+    ; allocate the promised 1/3 to the buttons 
+    mov ecx, 3
+    xor edx, edx
+    div ecx                                  
+    mov ebx, eax                             
+    sub ebx, 24                              ; EBX = button panel width
+
+    ; cap button size so it isn't larger than a board square
+    mov ecx, dword [rel tile_size]
+    shl ecx, 1
+    cmp ebx, ecx
+    jle .size_ok
+    mov ebx, ecx
+
+.size_ok:
+    ; EBX is both width and height
+
+    ; calculate button X (right aligned, 12px padding from right edge)
+    mov r8d, dword [rel screen_w]
+    sub r8d, ebx
+    sub r8d, 12                              ; R8D = Button X
+
+    ; store x, y, w=h for all buttons
+    mov dword [rel btn_back_box], r8d
+    mov dword [rel btn_back_box + 8], ebx
+    mov dword [rel btn_back_box + 12], ebx
+
+    mov dword [rel btn_forward_box], r8d
+    mov dword [rel btn_forward_box + 8], ebx
+    mov dword [rel btn_forward_box + 12], ebx
+
+    mov dword [rel btn_draw_box], r8d
+    mov dword [rel btn_draw_box + 8], ebx
+    mov dword [rel btn_draw_box + 12], ebx
+
+    mov dword [rel btn_giveup_box], r8d
+    mov dword [rel btn_giveup_box + 8], ebx
+    mov dword [rel btn_giveup_box + 12], ebx
+
+    ; compute height offsets
+    mov ecx, dword [rel board_y]
+    mov dword [rel btn_back_box + 4], ecx    ; back
+    
+    add ecx, ebx
+    add ecx, 8                               ; 8px gap
+    mov dword [rel btn_forward_box + 4], ecx     ; fwd
+
+    mov ecx, dword [rel board_y]
+    mov edx, dword [rel tile_size]
+    shl edx, 3
+    add ecx, edx
+    sub ecx, ebx
+    mov dword [rel btn_giveup_box + 4], ecx    ; surrender
+
+    sub ecx, ebx
+    sub ecx, 8                               ; 8px gap
+    mov dword [rel btn_draw_box + 4], ecx    ; draw
+
     pop rdx
     pop rcx
     pop rbx
@@ -580,6 +651,11 @@ _draw_transcript:
     test eax, eax
     jz .done
 
+    ; manual override if a scroll button was pressed
+    mov ebx, dword [rel ui_manual_scroll]
+    cmp ebx, -1
+    jne .scroll_manual
+
     ; auto-scrolling
     inc eax
     shr eax, 1                      
@@ -592,6 +668,10 @@ _draw_transcript:
     jmp .scroll_set
 .no_scroll:
     mov word [rel transcript_scroll], 0
+    jmp .scroll_set
+
+.scroll_manual:
+    mov word [rel transcript_scroll], bx
 .scroll_set:
 
     ; initialize memory
@@ -689,4 +769,137 @@ _draw_transcript:
     pop rbx
     mov rsp, rbp
     pop rbp
+    ret
+; ------------------------------------------------------------------------------
+; _draw_ui_buttons
+; Renders the UI backgrounds and bitmaps, adapting to the ui_action_state
+; ------------------------------------------------------------------------------
+_draw_ui_buttons:
+    push rbp
+    mov rbp, rsp
+    push r12
+    push r13
+    push r14
+    push r15
+
+    mov r13d, dword [rel ui_action_state]
+
+    ; draw transcript controls, state-independent
+    lea r12, [rel btn_back_box]
+    mov r14, qword [rel bmp_btn_back]
+    mov r10d, 0x00444444           
+    call .draw_icon
+
+    lea r12, [rel btn_forward_box]
+    mov r14, qword [rel bmp_btn_forward]
+    mov r10d, 0x00444444          
+    call .draw_icon
+
+    ; state-dependent controls
+    ; disable if offline
+    cmp byte [rel net_role], NET_ROLE_OFFLINE
+    je .finished
+    
+    ; draw-accept-cancel btns
+    lea r12, [rel btn_draw_box]
+    cmp r13d, ACTION_STATE_SURRENDER
+    je .draw_cancel_state          ; confirming surrender -> draw is cancel
+    cmp r13d, ACTION_STATE_DRAW
+    je .draw_confirm_state         ; confirming draw -> draw is confirm
+    cmp r13d, ACTION_STATE_INCOMING_DRAW
+    je .draw_confirm_state         ; incoming draw -> draw is accept
+    
+    ; default state
+    mov r14, qword [rel bmp_btn_draw]
+    mov r10d, 0x003333AA           ; blue
+    jmp .render_draw_btn
+
+.draw_cancel_state:
+    mov r14, qword [rel bmp_btn_no]
+    mov r10d, 0x00AA3333           ; red
+    jmp .render_draw_btn
+
+.draw_confirm_state:
+    mov r14, qword [rel bmp_btn_ok]
+    mov r10d, 0x0033AA33           ; green
+
+.render_draw_btn:
+    call .draw_icon
+
+
+    ; surrender/deny btn states
+    lea r12, [rel btn_giveup_box]
+    cmp r13d, ACTION_STATE_SURRENDER
+    je .giveup_confirm_state         ; confirming surrender -> surrender is confirm
+    cmp r13d, ACTION_STATE_DRAW
+    je .giveup_cancel_state          ; confirming draw -> surrender is cancel
+    cmp r13d, ACTION_STATE_INCOMING_DRAW
+    je .giveup_cancel_state          ; incoming draw -> surrender is deny
+    
+    ; default
+    mov r14, qword [rel bmp_btn_giveup]
+    mov r10d, 0x00AA3333           ; r
+    jmp .render_giveup_btn
+
+.giveup_confirm_state:
+    mov r14, qword [rel bmp_btn_ok]
+    mov r10d, 0x0033AA33           ; g
+    jmp .render_giveup_btn
+
+.giveup_cancel_state:
+    mov r14, qword [rel bmp_btn_no]
+    mov r10d, 0x00AA3333           ; r
+
+.render_giveup_btn:
+    call .draw_icon
+
+.finished:
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    mov rsp, rbp
+    pop rbp
+    ret
+
+
+.draw_icon:
+    ; draw the actual buttons
+
+    ; background rect
+    mov rdi, [rel backbuffer_ptr]
+    mov rsi, [rel framebuffer_pitch]
+    mov ecx, dword [r12]                     ; X
+    mov edx, dword [r12 + 4]                 ; Y
+    mov r8d, dword [r12 + 8]                 ; W
+    mov r9d, dword [r12 + 12]                ; H
+    ; R10D is already set
+    
+    push rcx
+    push rdx
+    call draw_rectangle
+    pop rdx
+    pop rcx
+    
+    ; put the bmp
+    test r14, r14
+    jz .skip_bmp                             ; doesn't exist? don't die then
+
+    mov r15d, dword [rel tile_size]          ; backup the actual chessboard tile size
+    
+    mov eax, dword [r12 + 8]                 ; btn width
+    mov dword [rel tile_size], eax           ; hijack the tile size -- could be probably done better
+    
+    mov rdi, [rel backbuffer_ptr]
+    mov rsi, [rel framebuffer_pitch]
+    mov r8, r14                              ; R8 = bmp ptr
+    ; RCX and RDX are x and y
+
+    call draw_bitmap_scaled     
+    mov dword [rel tile_size], r15d
+    jmp .done          
+    
+.skip_bmp:
+    LOG "UI: bitmap is gone!"
+.done:
     ret

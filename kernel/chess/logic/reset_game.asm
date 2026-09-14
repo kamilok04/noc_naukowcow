@@ -28,6 +28,20 @@ reset_game:
     mov byte [rel w_castle_q], 1
     mov byte [rel b_castle_k], 1
     mov byte [rel b_castle_q], 1
+
+    ; wipe the transcript
+    mov dword [rel ui_action_state], ACTION_STATE_DEFAULT
+    mov word [rel transcript_count], 0
+    mov word [rel transcript_scroll], 0
+    
+    ; wipe the buffer just in case
+    lea rdi, [rel transcript_buffer]
+    xor rax, rax
+    mov rcx, 512                     
+    rep stosq
+
+    ; engage transcript auto-scroll again
+    mov dword [rel ui_manual_scroll], -1
     
     call reset_start_trackers
 

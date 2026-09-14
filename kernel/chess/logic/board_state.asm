@@ -74,6 +74,14 @@ path_bqueen  db "ASSETS/CHESS/BQUEEN.BMP;1", 0
 path_brook   db "ASSETS/CHESS/BROOK.BMP;1", 0
 path_bbishop db "ASSETS/CHESS/BBISHOP.BMP;1", 0
 
+path_btn_giveup   db "ASSETS/CHESS/GIVEUP.BMP;1", 0
+path_btn_draw     db "ASSETS/CHESS/DRAW.BMP;1", 0
+path_btn_ok       db "ASSETS/CHESS/OK.BMP;1", 0
+path_btn_no       db "ASSETS/CHESS/NO.BMP;1", 0
+path_btn_back     db "ASSETS/CHESS/BACK.BMP;1", 0
+path_btn_forward  db "ASSETS/CHESS/FORWARD.BMP;1", 0
+
+
 ; Valid movements
 ; Knight:
 
@@ -185,3 +193,27 @@ black_wins_str db "Czarne wygrywają!", 0
 white_wins_str db "Białe wygrywają!", 0
 stalemate_str db "Remis.", 0
 popup_btn_str db "Rewanż!", 0
+
+; GUI
+
+ACTION_STATE_DEFAULT equ 0
+ACTION_STATE_SURRENDER equ 1 ; there is no "incoming surrendder", as it doesn't requires the opponent's consent
+ACTION_STATE_DRAW equ 2
+ACTION_STATE_INCOMING_DRAW equ 3
+
+ui_action_state dd 0      
+ui_manual_scroll dd -1    ; -1 = Auto-scroll, >=0 = Manual offset
+
+; bounding boxes for buttons
+btn_back_box     dd 0, 0, 0, 0
+btn_forward_box  dd 0, 0, 0, 0
+btn_draw_box     dd 0, 0, 0, 0
+btn_giveup_box   dd 0, 0, 0, 0
+
+; gui bmp ptrs
+bmp_btn_back  dq 0       ; "<"
+bmp_btn_forward   dq 0       ; ">"
+bmp_btn_draw  dq 0       ; "1/2"
+bmp_btn_giveup  dq 0       ; "flag"
+bmp_btn_ok dq 0       ; "checkmark"
+bmp_btn_no dq 0       ; "X"

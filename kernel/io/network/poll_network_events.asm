@@ -149,6 +149,16 @@ poll_network_events:
     cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xBB
     je .remote_reset
 
+    ; UI commands?
+    cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xCC
+    je .remote_offer_draw
+    
+    cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xCD
+    je .remote_accept_draw
+    
+    cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xCE
+    je .remote_surrender
+
     ; Filter out ACKs
     ; 0x00 -> 0x00, which will never be a valid move
     mov al, byte [rel rx_data + MOVE_PAYLOAD.Origin]
@@ -196,19 +206,6 @@ poll_network_events:
     ; resume logic, check against vital stuff
     call promotion_interrupt_resolved 
 
-.rearm_rx:
-    mov byte [rel is_remote_move], 0         ; unlock TX
-    mov dword [rel rx_packet_data + 4], 3
-    mov dword [rel rx_packet_data + 16], 3
-    ; mov byte [rel rx_data], 0
-
-    call render_playfield
-    call swap_buffers
-    mov byte [rel cursor_is_saved], 0
-
-    call queue_network_rx
-    jmp .done
-
 .sync_ok:
     LOG "Sync packet received! Entering game."
     
@@ -231,6 +228,42 @@ poll_network_events:
     mov byte [rel cursor_is_saved], 0
 
     jmp .rearm_rx
+
+.remote_offer_draw:
+    LOG "Opponent offered a draw."
+    mov dword [rel ui_action_state], ACTION_STATE_INCOMING_DRAW
+    jmp .rearm_rx
+
+.remote_accept_draw:
+    LOG "Opponent accepted the draw."
+    mov dword [rel ui_action_state], ACTION_STATE_DEFAULT
+    mov byte [rel match_state], 3        ; 3 = Stalemate/Draw
+    jmp .rearm_rx
+
+.remote_surrender:
+    LOG "Opponent surrendered."
+    mov dword [rel ui_action_state], ACTION_STATE_DEFAULT
+    
+    ; white goes: 0, black goes: 1
+    ; white wins: 1, black wins: 2
+    ; just add 1!
+    mov al, byte [rel local_color]
+    inc al                           
+    mov byte [rel match_state], al
+    jmp .rearm_rx
+
+.rearm_rx:
+    mov byte [rel is_remote_move], 0         ; unlock TX
+    mov dword [rel rx_packet_data + 4], 3
+    mov dword [rel rx_packet_data + 16], 3
+    ; mov byte [rel rx_data], 0
+
+    call render_playfield
+    call swap_buffers
+    mov byte [rel cursor_is_saved], 0
+
+    call queue_network_rx
+    jmp .done
 
 .done:
     add rsp, 40

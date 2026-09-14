@@ -79,7 +79,40 @@ init_assets:
     lea rcx, [rel path_logo]
     call fopen
     mov [rel logo_ptr], rax
+
+    ; GUI assets
+   
+    lea rcx, [rel path_btn_ok]
+    call fopen
+    mov rdx, [rax + FILE.BufferPtr]  
+    mov [rel bmp_btn_ok], rdx
+
+    lea rcx, [rel path_btn_no]
+    call fopen
+    mov rdx, [rax + FILE.BufferPtr]  
+    mov [rel bmp_btn_no], rdx
+
+    lea rcx, [rel path_btn_giveup]
+    call fopen
+    mov rdx, [rax + FILE.BufferPtr]  
+    mov [rel bmp_btn_giveup], rdx
+    
+    lea rcx, [rel path_btn_draw]
+    call fopen
+    mov rdx, [rax + FILE.BufferPtr]  
+    mov [rel bmp_btn_draw], rdx
+    
+    lea rcx, [rel path_btn_forward]
+    call fopen
+    mov rdx, [rax + FILE.BufferPtr]  
+    mov [rel bmp_btn_forward], rdx
+    
+    lea rcx, [rel path_btn_back]
+    call fopen
+    mov rdx, [rax + FILE.BufferPtr]  
+    mov [rel bmp_btn_back], rdx
     jmp .done
+
 
 .load_error:
     LOG "Failed to load the piece!"

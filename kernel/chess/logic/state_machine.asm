@@ -103,7 +103,6 @@ the_chess_state_machine:
 
 .castling_and_rights:
     push rcx                       
-
     cmp cl, W_KING
     je .handle_white_king
     cmp cl, B_KING
@@ -113,9 +112,9 @@ the_chess_state_machine:
     jmp .check_rook_violations       
 
 .handle_white_king:
-    cmp r8b, 0x76                    ; WK -> G1?
+    cmp r8b, byte [rel WRh_start]                    ; WK -> WRh?
     je .wk_kingside
-    cmp r8b, 0x72                    ; WK -> C1?
+    cmp r8b, byte [rel WRa_start]                    ; WK -> WRa?
     je .wk_queenside
     jmp .revoke_all_rights_w         ; regular WK move
 
@@ -139,9 +138,9 @@ the_chess_state_machine:
     jmp .is_capture
 
 .handle_black_king:
-    cmp r8b, 0x06                    ; BK -> G8?
+    cmp r8b, byte [rel BRh_start]   ; BK -> BRh?
     je .bk_kingside
-    cmp r8b, 0x02                    ; BK -> C8?
+    cmp r8b, byte [rel BRa_start]   ; BK -> BRa?
     je .bk_queenside
     jmp .revoke_all_rights_b
 

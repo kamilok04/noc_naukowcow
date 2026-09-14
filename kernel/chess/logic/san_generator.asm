@@ -158,19 +158,18 @@ build_san_string:
     jmp .not_castling
     
 .check_w_castle:
-    cmp r8b, 0x76                    ; WK -> G1?
+    cmp r8b, byte [rel WRh_start]
     je .write_o_o
-    cmp r8b, 0x72                    ; WK -> C1?
+    cmp r8b, byte [rel WRa_start]
     je .write_o_o_o
     jmp .not_castling
     
 .check_b_castle:
-    cmp r8b, 0x06                    ; BK -> G8?
+    cmp r8b, byte [rel BRh_start]
     je .write_o_o
-    cmp r8b, 0x02                    ; BK -> C8?
+    cmp r8b, byte [rel BRa_start]
     je .write_o_o_o
     jmp .not_castling
-
 .write_o_o:
     mov dword [rdi], 0x204F2D4F      ; "O-O "
     add rdi, 3
@@ -180,7 +179,6 @@ build_san_string:
     mov word [rdi+4], 0x204F         ; "O "
     add rdi, 5
     jmp .finalize_string
-
 .not_castling:
     ; write the piece letter
     lea rbx, [rel san_letters]  ; use the lookup table
@@ -282,6 +280,7 @@ save_san_to_buffer:
     push rsi
 
     movzx rax, word [rel transcript_count]
+    mov rbx, rax
     shl rax, 3                       ; multiply by 8 bytes
     lea rdi, [rel transcript_buffer]
     add rdi, rax                     ; RDI = target slot
@@ -290,8 +289,30 @@ save_san_to_buffer:
     mov rcx, 8                       ; copy exactly 8 bytes
     rep movsb
     
-    inc word [rel transcript_count]  ; increment half-move counter
+    ; inc word [rel transcript_count]  ; increment half-move counter
 
+    ; precompute the move number
+    test rbx, 1 ; only do that on even moves
+    jnz .done_saving
+
+    shr rbx, 1 ; full move no.
+    lea rdi, [rel move_num_strings]
+    lea rdi, [rdi + rbx * 8]
+    mov qword [rdi], 0x2020202e ; '.   '
+    add rdi, 2; offset
+    mov rax, rbx
+    inc rax
+    mov rcx, 10
+.itoa:
+    xor edx, edx
+    div ecx
+    add dl, '0'
+    mov byte [rdi], dl
+    dec rdi
+    test rax, rax
+    jnz .itoa
+.done_saving:
+    inc word[rel transcript_count]
     pop rsi
     pop rdi
     pop rcx

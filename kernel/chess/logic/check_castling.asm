@@ -128,7 +128,7 @@ check_castling:
     jmp .wk_atk_loop
 
 .wk_safe:
-    mov rax, 0x76
+    movzx rax, byte [rel WRh_start]
     movzx r8, byte [rel WK_start]
     push rax
     call add_valid_move
@@ -186,7 +186,7 @@ check_castling:
     jmp .wq_atk_loop
 
 .wq_safe:
-    mov rax, 0x72
+    movzx rax, byte [rel WRa_start]
     movzx r8, byte [rel WK_start]
     push rax
     call add_valid_move
@@ -239,7 +239,7 @@ check_castling:
     jmp .bk_atk_loop
 
 .bk_safe:
-    mov rax, 0x06
+    movzx rax, byte [rel BRh_start]
     movzx r8, byte [rel BK_start]
     push rax
     call add_valid_move
@@ -295,7 +295,7 @@ check_castling:
     jmp .bq_atk_loop
 
 .bq_safe:
-    mov rax, 0x02
+    movzx rax, byte [rel BRa_start]
     movzx r8, byte [rel BK_start]
     push rax
     call add_valid_move

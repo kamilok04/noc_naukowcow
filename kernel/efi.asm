@@ -447,6 +447,7 @@ data_rva equ text_rva + text_vsize
     ; assuming 512 full moves here
     ; this better be enough
     transcript_buffer times 8192 db 0
+    move_num_strings: times 512 dq 0 ; 1., 2., ..., 512.
 
     ; SAN engine
     san_temp_str times 8 db 0x20   ; holds the string

@@ -217,3 +217,19 @@ bmp_btn_draw  dq 0       ; "1/2"
 bmp_btn_giveup  dq 0       ; "flag"
 bmp_btn_ok dq 0       ; "checkmark"
 bmp_btn_no dq 0       ; "X"
+
+; chess960
+chess960_mode   db 0
+rng_seed        dq 0
+temp_rank       times 8 db 0
+
+str_c960_off    db "Chess960: NIE", 0
+str_c960_on     db "Chess960: TAK", 0
+
+; c960 knights' possible positions
+; everything else is decided by this
+; see: Schnargl's algorithm
+knight_960_table db 0,0, 0,1, 0,2, 0,3, 1,1, 1,2, 1,3, 2,2, 2,3, 3,3
+
+current_seed dd 0
+str_seed_display db "Plansza nr    ", 0

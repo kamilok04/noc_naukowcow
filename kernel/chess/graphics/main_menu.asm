@@ -71,6 +71,44 @@ render_main_menu:
     shr edx, 1
     add edx, 218
     call draw_string
+
+    ; chess960
+    mov ecx, dword [rel screen_w]
+    shr ecx, 1
+    sub ecx, 150                 ;
+    mov edx, dword [rel screen_h]
+    shr edx, 1
+    add edx, 300                 
+    mov r8, 32                   
+    mov r9, 32                   
+    
+    cmp byte [rel chess960_mode], 1
+    je .cb_active
+    mov r10d, 0x00444444         ; Off = dark gray
+    jmp .cb_draw
+.cb_active:
+    mov r10d, 0x0033AA33         ; On = green
+.cb_draw:
+    push rcx                     ; save coords for string
+    push rdx
+    call draw_rectangle
+    pop rdx
+    pop rcx
+
+    ; draw the string depending on the toggle state
+    cmp byte [rel chess960_mode], 1
+    je .string_on
+.string_off:
+    lea r8, [rel str_c960_off]
+    jmp .render_string
+.string_on:
+    lea r8, [rel str_c960_on]
+.render_string:
+    add ecx, 48                  ; x offset
+    add edx, 8                   ; center text vertically
+    mov r10d, COLOR_WHITE
+    mov r13, 2                   ; 16x16 font
+    call draw_string
     
     ; draw cursor, swap buffers
     call swap_buffers

@@ -18,6 +18,7 @@ render_playfield:
     call draw_endgame_popup
     call _draw_transcript
     call _draw_ui_buttons
+    call _draw_seed
 
     mov rsp, rbp
     pop rbp
@@ -902,4 +903,22 @@ _draw_ui_buttons:
 .skip_bmp:
     LOG "UI: bitmap is gone!"
 .done:
+    ret
+
+; ------------------------------------------------------------------------------
+; _draw_seed
+; Renders the current seed in the top-left corner in a small font.
+; ------------------------------------------------------------------------------
+_draw_seed:
+    push rbp
+    mov rbp, rsp
+    
+    lea r8, [rel str_seed_display]
+    mov rcx, 8                       ; left: 8px
+    mov rdx, 8                       ; top: 8px
+    mov r10d, 0x00888888             ; dark grey
+    mov r13d, 1                      ; 1x scale
+    call draw_string
+    
+    pop rbp
     ret

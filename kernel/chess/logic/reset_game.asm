@@ -55,22 +55,66 @@ reset_game:
 ; reset_start_trackers
 ; Reset the starting positions of king and rooks (for castling)
 ; ------------------------------------------------------------------------------
-; In the future, this will hold a position tracker and some dynamic updates.
-; For now, hardcode standard chess layout.
 reset_start_trackers:
     push rbp
     mov rbp, rsp
+    push rax
+    push rcx
+    push rbx
+    push rdi
+    mov rcx, 0x70
+    xor rbx, rbx                     ; rook counter (0 = a-rook, 1 = h-rook)
+    lea rdi, [rel initial_board]
+.w_scan:
+    mov al, byte [rdi + rcx]
+    cmp al, W_KING
+    jne .w_check_rook
+    mov byte [rel WK_start], cl
+    jmp .w_next
+.w_check_rook:
+    cmp al, W_ROOK
+    jne .w_next
+    test rbx, rbx
+    jnz .w_h_rook
+    mov byte [rel WRa_start], cl     ; first rook must be WQR
+    inc rbx
+    jmp .w_next
+.w_h_rook:
+    mov byte [rel WRh_start], cl     ; the other: WKR
+.w_next:
+    inc rcx
+    cmp rcx, 0x78
+    jl .w_scan
 
-    mov byte[rel WK_start],     0x74    
-    mov byte[rel WRa_start],    0x70
-    mov byte[rel WRh_start],    0x77
-    mov byte[rel BK_start],     0x04
-    mov byte[rel BRa_start],    0x00
-    mov byte[rel BRh_start],    0x07
+    mov rcx, 0x00
+    xor rbx, rbx
+.b_scan:
+    mov al, byte [rdi + rcx]
+    cmp al, B_KING
+    jne .b_check_rook
+    mov byte [rel BK_start], cl
+    jmp .b_next
+.b_check_rook:
+    cmp al, B_ROOK
+    jne .b_next
+    test rbx, rbx
+    jnz .b_h_rook
+    mov byte [rel BRa_start], cl
+    inc rbx
+    jmp .b_next
+.b_h_rook:
+    mov byte [rel BRh_start], cl
+.b_next:
+    inc rcx
+    cmp rcx, 0x08
+    jl .b_scan
 
+    pop rdi
+    pop rbx
+    pop rcx
+    pop rax
     mov rsp, rbp
     pop rbp
     ret
-
 
 

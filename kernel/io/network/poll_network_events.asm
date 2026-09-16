@@ -208,7 +208,15 @@ poll_network_events:
 
 .sync_ok:
     LOG "Sync packet received! Entering game."
+    movzx rdi, word [rel rx_data + MOVE_PAYLOAD.Destination] 
     
+    call generate_chess960_board     ; Build initial_board using the host's seed
+    
+    lea rsi, [rel initial_board]
+    lea rdi, [rel board]
+    mov rcx, 128
+    rep movsb                        ; copy to live board
+
     call calculate_board_layout           
     call render_playfield                 
     call swap_buffers                     

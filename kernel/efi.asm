@@ -307,6 +307,8 @@ efi_main:
 %include "poll_network_events.asm"
 %include "main_menu.asm"
 %include "san_generator.asm"
+%include "random.asm"
+%include "960_generate_board.asm"
 
 ; Pad .text to 8KB
 align 8192, db 0

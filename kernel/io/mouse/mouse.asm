@@ -196,16 +196,16 @@ handle_mouse_click:
     mov edi, eax
     ;sub edi, 100
     cmp r8d, edi
-    jl .done
+    jl .select_c960
     add edi, 50
     cmp r8d, edi
     jl .select_host
     
     ; join btn
     mov edi, eax
-    cmp r8d, edi
     add edi, 100
-    jl .done
+    cmp r8d, edi
+    jl .select_c960
     add edi, 50
     cmp r8d, edi
     jl .select_join
@@ -214,17 +214,40 @@ handle_mouse_click:
     mov edi, eax
     add edi, 200
     cmp r8d, edi
-    jl .done
+    jl .select_c960
     add edi, 50
     cmp r8d, edi
     jl .select_offline
+
+
+    ; c960 btn
+    mov edi, eax
+    add edi, 300
+    cmp r8d, edi
+    jl .done
+    add edi, 50
+    cmp r8d, edi
+    jl .select_c960
     jmp .done
+
 
 .select_host:
     LOG "Server role picked."
     mov byte [rel net_role], NET_ROLE_SERVER
     mov byte [rel local_color], 0
-    ;mov byte [rel in_menu], MENU_STATE_AWAITING_CONNECTION      
+    cmp byte [rel chess960_mode], 1
+    je .do_960_host
+    mov rdi, 518                     
+    jmp .generate_host
+.do_960_host:
+    call generate_random_seed        
+.generate_host:
+    call generate_chess960_board     
+    mov word [rel sync_payload + 1], di
+    lea rsi, [rel initial_board]
+    lea rdi, [rel board]
+    mov rcx, 128
+    rep movsb
     call transition_to_network
     jmp .done
 .select_join:
@@ -236,11 +259,58 @@ handle_mouse_click:
     jmp .done
 .select_offline:
     mov byte [rel net_role], NET_ROLE_OFFLINE
+
+    cmp byte [rel chess960_mode], 1
+    je .do_960_offline
+    mov rdi, 518                    ; you have been fooled
+                                    ; Chess960 mode is always active
+                                    ; when picking host/offline,
+                                    ; simply skip the RNG and always output
+                                    ; the seed corresponding to the standard layout
+                                    ; 
+    jmp .generate_offline
+.do_960_offline:
+    call generate_random_seed        ; 1: Generates random seed into RDI
+.generate_offline:
+    call generate_chess960_board     ; Sets up initial_board and start trackers
+
+    lea rsi, [rel initial_board]
+    lea rdi, [rel board]
+    mov rcx, 128
+    rep movsb
+
     mov byte [rel in_menu], MENU_STATE_IN_GAME       
     call calculate_board_layout           
     call render_playfield                 
     call swap_buffers                     
     mov byte [rel cursor_is_saved], 0
+    jmp .done
+
+.select_c960:
+    ; get bounding box
+    mov eax, dword [rel screen_w]
+    shr eax, 1
+    sub eax, 150
+    cmp ecx, eax
+    jl .done          ; too far left
+    add eax, 250      ; width (32px box + text width)
+    cmp ecx, eax
+    jg .done          ; too far right
+
+
+    mov eax, dword [rel screen_h]
+    shr eax, 1
+    add eax, 300
+    cmp r8d, eax
+    jl .done           ; too high
+    add eax, 32        ; btn height
+    cmp r8d, eax
+    jg .done         ; too low
+
+    LOG "Chess960 btn click"
+    ; ok; toggle the state
+    xor byte [rel chess960_mode], 1
+
     jmp .done
     
 .in_game:
@@ -281,7 +351,7 @@ handle_mouse_click:
     call reset_game               ; ok; restart
     jmp .done                     ; nie pozwalaj na nic poza kliknięciem przycisku "rewanż"
 
-    .game_is_active:
+.game_is_active:
     mov rdx, r11 
     call check_promotion_click
     test rax, rax

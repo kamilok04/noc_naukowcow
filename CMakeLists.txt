@@ -64,7 +64,7 @@ COMMAND ${CMAKE_ASM_NASM_COMPILER}
 "-i${ARCH_AGNOSTIC_ROOT}/chess"
 "-i${ARCH_AGNOSTIC_ROOT}/chess/logic"
 "-i${ARCH_AGNOSTIC_ROOT}/chess/graphics"
-
+"-i${ARCH_AGNOSTIC_ROOT}/chess/c960"
 "-fbin"
 "-o${CMAKE_SYSROOT}/EFI/BOOT/BOOTX64.EFI" 
 "$<$<CONFIG:DEBUG>:-L+listings/efi.lst>"

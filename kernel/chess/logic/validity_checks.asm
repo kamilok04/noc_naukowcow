@@ -17,41 +17,31 @@ is_on_board:
 ;   AL - Moving piece ID (1-12)
 ;   BL - Target square piece ID (0-12)
 ; Outputs: 
-;   RAX = 0 if blocked by friendly piece, 1 otherwise
+;   RAX = 1 if blocked by friendly piece, 0 otherwise
 ; Trashes:
 ;   CL, DL
 ; ------------------------------------------------------------------------------
 is_friendly_fire:
-
-;    LOG "Checking for friendly fire."
-    ; movzx rax, al
-    ; movzx rbx, bl
-    ; LOG "RAX = %x, RBX = %x", rax, rbx
-    push rcx
-    push rdx
-    test bl, bl
-    jz .not_friendly             
-
-    ; white: 1-6
-    ; black: 7-12
+    ; source piece color
     cmp al, 7
-    setae cl               
-
+    setae al
+    
+    ; target piece color
     cmp bl, 7
-    setae dl   
-
-    cmp cl, dl
-    je .friendly            ; If colors match, it's friendly fire
-
-.not_friendly:
-    xor rax, rax
-    jmp .done
-.friendly:
-    xor rax, rax
-    inc rax
-.done:
-    pop rdx
-    pop rcx
+    setae ah
+    
+    ; compare, set AL if identical
+    cmp al, ah
+    sete al
+    
+    ; remove empty squares from the calculation
+    ; 0 < 7, so an empty square is white up to here
+    test bl, bl
+    setnz ah         ; AH = 1 if occupied
+    
+    ; non-empty and colors match: friendly fire
+    and al, ah       
+    movzx rax, al    ; clear whatever could be in the upper bits
     ret
 
 ; ------------------------------------------------------------------------------

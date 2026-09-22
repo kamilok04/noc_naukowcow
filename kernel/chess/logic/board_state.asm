@@ -60,26 +60,26 @@ sandbox_board: times 128 db 0 ; for actual move detection
 piece_bitmaps: times 13 dq 0
 
 ; File paths for the assets
-path_wpawn   db "ASSETS/CHESS/WPAWN.BMP;1", 0
-path_wknight db "ASSETS/CHESS/WKNIGHT.BMP;1", 0
-path_wking   db "ASSETS/CHESS/PKING.BMP;1", 0
-path_wqueen  db "ASSETS/CHESS/WQUEEN.BMP;1", 0
-path_wrook   db "ASSETS/CHESS/WROOK.BMP;1", 0
-path_wbishop db "ASSETS/CHESS/WBISHOP.BMP;1", 0
+path_wpawn   db "ASSETS\CHESS\WPAWN.BMP", 0
+path_wknight db "ASSETS\CHESS\WKNIGHT.BMP", 0
+path_wking   db "ASSETS\CHESS\PKING.BMP", 0
+path_wqueen  db "ASSETS\CHESS\WQUEEN.BMP", 0
+path_wrook   db "ASSETS\CHESS\WROOK.BMP", 0
+path_wbishop db "ASSETS\CHESS\WBISHOP.BMP", 0
 
-path_bpawn   db "ASSETS/CHESS/BPAWN.BMP", 0
-path_bknight db "ASSETS/CHESS/BKNIGHT.BMP;1", 0
-path_bking   db "ASSETS/CHESS/BKING.BMP;1", 0
-path_bqueen  db "ASSETS/CHESS/BQUEEN.BMP;1", 0
-path_brook   db "ASSETS/CHESS/BROOK.BMP;1", 0
-path_bbishop db "ASSETS/CHESS/BBISHOP.BMP;1", 0
+path_bpawn   db "ASSETS\CHESS\BPAWN.BMP", 0
+path_bknight db "ASSETS\CHESS\BKNIGHT.BMP", 0
+path_bking   db "ASSETS\CHESS\BKING.BMP", 0
+path_bqueen  db "ASSETS\CHESS\BQUEEN.BMP", 0
+path_brook   db "ASSETS\CHESS\BROOK.BMP", 0
+path_bbishop db "ASSETS\CHESS\BBISHOP.BMP", 0
 
-path_btn_giveup   db "ASSETS/CHESS/GIVEUP.BMP;1", 0
-path_btn_draw     db "ASSETS/CHESS/DRAW.BMP;1", 0
-path_btn_ok       db "ASSETS/CHESS/OK.BMP;1", 0
-path_btn_no       db "ASSETS/CHESS/NO.BMP;1", 0
-path_btn_back     db "ASSETS/CHESS/BACK.BMP;1", 0
-path_btn_forward  db "ASSETS/CHESS/FORWARD.BMP;1", 0
+path_btn_giveup   db "ASSETS\CHESS\GIVEUP.BMP", 0
+path_btn_draw     db "ASSETS\CHESS\DRAW.BMP", 0
+path_btn_ok       db "ASSETS\CHESS\OK.BMP", 0
+path_btn_no       db "ASSETS\CHESS\NO.BMP", 0
+path_btn_back     db "ASSETS\CHESS\BACK.BMP", 0
+path_btn_forward  db "ASSETS\CHESS\FORWARD.BMP", 0
 
 
 ; Valid movements

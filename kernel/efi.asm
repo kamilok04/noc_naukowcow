@@ -16,6 +16,7 @@ text_raw_ptr equ $ - DOS_HEADER
 text_rva equ 0x1000
 
 efi_main:
+    mov [rel image_handle], rcx
     sub rsp, 40              ; allocate 32 bytes shadow space + 8 bytes alignment
     mov r12, rdx             ; save SystemTable to non-volatile register
 
@@ -46,28 +47,8 @@ efi_main:
     add rsp, 32                      ; Clean up shadow space
 
     ; load the root directory
-    call init_block_io
-    
-    mov rcx, 2              ; PoolType: EfiLoaderData
-    mov rdx, 2048           ; 1 sector
-    lea r8, [rel sector_buffer]
-    call [rbx + EFI_BOOT_SERVICES.AllocatePool]
-
-    mov r8, 16
-    mov r9, 2048
-    mov r10, [rel sector_buffer]
-    call read_sectors
-
-    mov rdi, [rel sector_buffer]
-    mov r8d, dword [rdi + ISO9660_PVD.RootDirectoryRecord + ISO9660_DIR_RECORD.ExtentLocationLE]
-    mov [rel root_dir_lba], r8
-
-    mov r9d, dword [rdi + ISO9660_PVD.RootDirectoryRecord + ISO9660_DIR_RECORD.DataLengthLE]
-    mov [rel root_dir_size], r9
-    
-    mov r9, 2048
-    mov r10, [rel sector_buffer]
-    call read_sectors
+    call init_fs
+    LOG "fs init ok"
 
     ; try to read a file
     lea rcx, [rel target_file]
@@ -93,7 +74,7 @@ efi_main:
     
     LOG "The GOP protocol located succesfully."
     
-   ; call set_max_resolution
+    call set_max_resolution
 
     ; ask the framebuffer what it knows
     mov rbx, [rel gop_ptr]   
@@ -224,7 +205,8 @@ efi_main:
 
     LOG "Entering interactive mode."
     call init_mouse
-    mov rcx, [rel mouse_ptr]
+
+.set_event:
     mov rax, [rcx + 16]                 
     mov [rel wait_event_array], rax
 
@@ -327,6 +309,16 @@ data_rva equ text_rva + text_vsize
 
     ; typeface
     %include "font.asm"
+
+    ; globals (everything is global, but this is global-er)
+
+    ; what is even different about these?
+
+    ; image_handle stores the EFI_HANDLE - this is the pointer to this whole system (as in: an UEFI boot service app)
+    ; loaded_image_ptr stores the EFI_LOADED_IMAGE_PROTOCOL - the command structure for the image
+    ; with both of them, the world is ours.
+    image_handle dq 0
+    loaded_image_ptr dq 0
     
 
     ; Serial Logs
@@ -341,8 +333,8 @@ data_rva equ text_rva + text_vsize
     msg_gop_ok db "Graphics Output Protocol located.", 13, 10, 0
     msg_iso_reading_file db "Attempting a file read...", 13, 10, 0
     msg_iso_read_failed db "Reading failure!", 13, 10, 0
-    test_file db "ASSETS/FOLDER/TEST.TXT;1", 0
-    target_file db "OK.BMP;1", 0
+    test_file db "ASSETS\FOLDER\TEST.TXT", 0
+    target_file db "OK.BMP", 0
     msg_done   db "The bootloader is done.", 13, 10, 0
     str_menu_host    db "Graj jako gospodarz", 0
     str_menu_join    db "Graj jako gość", 0
@@ -356,20 +348,23 @@ data_rva equ text_rva + text_vsize
     boot_services_ptr dq 0 
     
     ; ISO reader ptrs
-    block_io_ptr   dq 0
-    pvd_buffer_ptr dq 0
-    sector_buffer  dq 0
-    push rcx
-    push rdi
-    push rsi
-    file_buffer    dq 0
-    file_lba       dq 0
-    file_size      dq 0
-    file_read_size dq 0
-    path_token    times 64 db 0
-    root_dir_lba  dq 0
-    root_dir_size dq 0
+    struc FILE
+        .BufferPtr resq 1
+        .FileSize  resq 1  
+        .Cursor    resq 1 
+    endstruc
+    FILE_STRUCT_SIZE equ 24
 
+
+
+    simple_fs_ptr   dq 0
+    root_dir_ptr    dq 0
+    efi_file_handle dq 0
+    temp_buffer_ptr dq 0
+    temp_struct_ptr dq 0
+    temp_file_size  dq 0
+
+path_utf16 times 512 db 0
     ; GOP ptrs
     max_ratio dd 0
     gop_ptr dq 0
@@ -401,10 +396,17 @@ data_rva equ text_rva + text_vsize
     mouse_y   dd 300    ; Starting Y coordinate
     ; mouse_event_array dq 0
     event_index       dq 0
+    sync_timer_event    dq 0
+    mouse_events_array  times 16 dq 0
+    mouse_events_count  dq 0
+    temp_ptr   dq 0      ; last detected mouse ptr
+    init_count dq 0      ; frame handler
 
     ; handle detection
-    handle_count  dq 0
-    handle_buffer dq 0
+    handle_buffer_size dq 128
+    handle_buffer times 16 dq 0
+    init_handles times 32 dq 0
+
 
     ; mouse state
     mouse_state times 32 db 0 
@@ -420,7 +422,7 @@ data_rva equ text_rva + text_vsize
     saved_cursor_y   dq 0
     cursor_is_saved  db 0           ; Flag: 0 = No, 1 = Yes
     cursor_size      equ 32
-    path_cursor db "ASSETS/CURSOR.BMP;1", 0
+    path_cursor db "ASSETS\CURSOR.BMP", 0
     bmp_cursor dq 0
 
     ; networking 
@@ -431,7 +433,7 @@ data_rva equ text_rva + text_vsize
     MENU_STATE_MAIN equ 1
     MENU_STATE_AWAITING_CONNECTION equ 2
     in_menu db MENU_STATE_MAIN ; 1: menu active, 0: in-game, 2: awaiting connection
-    path_logo db "ASSETS/CHESS/LOGO.BMP;1", 0
+    path_logo db "ASSETS\CHESS\LOGO.BMP", 0
     logo_ptr dq 0
     str_awaiting  db "Oczekiwanie na połączenie...", 0
     str_cancel    db "Anuluj", 0
@@ -475,6 +477,11 @@ data_rva equ text_rva + text_vsize
 
     
     ; GUIDs
+    ; {5B1B31A1-9562-11D2-8E3F-00A0C969723B}
+    GUID_LOADED_IMAGE:
+        dd 0x5b1b31a1
+        dw 0x9562, 0x11d2
+        db 0x8e, 0x3f, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b
     ; {8D59D32B-C655-4AE9-9B15-F25904992A43}
     GUID_ABSOLUTE_POINTER:
         dd 0x8d59d32b
@@ -496,6 +503,10 @@ data_rva equ text_rva + text_vsize
         dw 0x6459, 0x11d2
         db 0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b
 
+    GUID_SIMPLE_FILE_SYSTEM:
+        dd 0x0964e5b22
+        dw 0x6459, 0x11d2
+        db 0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b
     ; {00720665-67EB-4a99-BAF7-D3C33A1C7CC9}
     GUID_TCP4_SERVICE_BINDING:
         dd 0x00720665

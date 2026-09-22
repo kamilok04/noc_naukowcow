@@ -1,13 +1,62 @@
 %ifndef FILEIO
 %define FILEIO
 %endif
-%include "iso_parser.asm"
-%include "iso_reader.asm"
-%include "malloc.asm"
+
+; ------------------------------------------------------------------------------
+; init_fs
+; Locates the Simple File System Protocol and opens the root volume.
+; Called once.
+; ------------------------------------------------------------------------------
+init_fs:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    sub rsp, 40
+   ;  LOG "Calling initfs"
+
+    mov rbx, [rel boot_services_ptr]
+
+    ; Locate the file system protocol
+    ; LOG "Locating image protocol"
+    mov rcx, [rel image_handle]
+    lea rdx, [rel GUID_LOADED_IMAGE]
+    lea r8, [rel loaded_image_ptr]
+    call [rbx + EFI_BOOT_SERVICES.HandleProtocol]
+    test rax, rax
+    jnz .fs_error
+
+   ;  LOG "Locating fs protocol"
+    mov rcx, [rel loaded_image_ptr]
+    mov rcx, [rcx + EFI_LOADED_IMAGE_PROTOCOL.DeviceHandle]
+
+    lea rdx, [rel GUID_SIMPLE_FILE_SYSTEM]
+    lea r8, [rel simple_fs_ptr]
+    call [rbx + EFI_BOOT_SERVICES.HandleProtocol]
+    test rax, rax
+    jnz .fs_error
+
+    ; Open the root (\)
+    ; LOG "Opening root"
+    mov rcx, [rel simple_fs_ptr]
+    lea rdx, [rel root_dir_ptr]
+    mov rax, [rcx + EFI_SIMPLE_FILE_SYSTEM_PROTOCOL.OpenVolume]    
+    call rax
+    test rax, rax
+    jnz .fs_error
+    LOG "All done"
+    jmp .done
+.fs_error:
+    LOG "fsinit error %x", rax
+.done:
+    add rsp, 40
+    pop rbx
+    mov rsp, rbp
+    pop rbp
+    ret
 
 ; ------------------------------------------------------------------------------
 ; fopen
-; Inputs: RCX - Pointer to target filename (e.g., "LOGO.BMP;1")
+; Inputs: RCX - Pointer to target filename (ASCII)
 ; Outputs: RAX - Pointer to allocated FILE struct (or 0 on error)
 ; ------------------------------------------------------------------------------
 fopen:
@@ -15,150 +64,95 @@ fopen:
     mov rbp, rsp
     push rbx
     push r12
-    push r13
-    push r14
-    push r15
-    mov r12, rcx                     
-    mov r13, [rel root_dir_lba]      
-    mov r14, [rel root_dir_size]     
+    sub rsp, 48                      
 
-.get_segment:
-    ; następny kawałek ścieżki dopóki nie wjedziesz w '/' albo 0
-    lea rdi, [rel path_token]
-    xor rbx, rbx                     ; RBX = długość kawałka
-.extract_char:
-    mov al, byte [r12]
-    cmp al, 0
-    je .token_done
-    cmp al, '/'
-    je .token_done
-    mov byte [rdi + rbx], al
-    inc r12
-    inc rbx
-    
-    jmp .extract_char
-.token_done:
-    
-    mov byte [rdi + rbx], 0          ; Pobierz terminatora
-    mov r15b, al                     ; R15B = co zostało zapisane?
-    
-    cmp r15b, '/'
-    jne .do_search
-    inc r12                          ; Przewiń przez '/'
+    ; convert ASCII string to UTF-16 string (required by UEFI)
+    mov rsi, rcx
+    lea rdi, [rel path_utf16]
+.ascii_to_utf16:
+    lodsb
+    stosb
+    mov byte [rdi], 0                ; UTF-16 padding byte
+    inc rdi
+    test al, al
+    jnz .ascii_to_utf16
 
-.do_search:
-    ; Zaokrąglij rozmiar do 2KB
-    mov rdx, r14
-    add rdx, 2047
-    and rdx, ~0x7ff
-
-    ; Zrób jakiś bufor na wpis katalogowy
-    mov rcx, 2                       ; EfiLoaderData
-    lea r8, [rel file_buffer]        ; tmp
-    mov rbx, [rel boot_services_ptr]
-    sub rsp, 32
-    call [rbx + EFI_BOOT_SERVICES.AllocatePool]
-    add rsp, 32
+    ; open the file via UEFI-provided driver
+    mov rcx, [rel root_dir_ptr]      ; root volume handle
+    lea rdx, [rel efi_file_handle]
+    lea r8, [rel path_utf16]
+    mov r9, 1                        ; EFI_FILE_MODE_READ
+    mov qword [rsp + 32], 0          ; no special flags
     
-    ; wczytaj wpis
-    mov r8, r13                      ; LBA
-    mov r9, r14                      ; Rozmiar
-    add r9, 2047
-    and r9, ~0x7ff
-    mov r10, [rel file_buffer]
-    call read_sectors
-
+    mov rax, [rcx + EFI_FILE_PROTOCOL.Open]
+    call rax
     test rax, rax
-    jnz .read_failure
-    
-    ; Poszukaj tu wpisu o żądanej nazwie
-    mov rdi, [rel file_buffer]
-    mov rcx, r14                     
-    lea rsi, [rel path_token]
-    ; LOG "Directory size is %x @ %x", rcx, rdi
-    ; LOG "Looking for token %s", rsi
-    call search_directory
-    
-    mov r13, rax                     ; nowe LBA
-    mov r14, rdx                     ; nowy rozmiar
-    
-    ; wpis już niepotrzebny, usuń
-    mov rcx, [rel file_buffer]
-    mov rbx, [rel boot_services_ptr]
-    sub rsp, 32
-    call [rbx + EFI_BOOT_SERVICES.FreePool]
-    add rsp, 32
-    
-    ; Udało się?
-    test r13, r13
-    jz .not_found                        ; jak 0, to nie
-    
-    ; '/', czyli jest jakiś folder pod spodem
-    cmp r15b, 0
-    jne .get_segment
-    
-    ; jest plik, utwórz strukturę FILE i ją oddaj
-    mov rcx, 2
-    mov rdx, 16
-    lea r8, [rel file_buffer]        ; recykling :)
-    
-    
-    mov rbx, [rel boot_services_ptr]
-    sub rsp, 32 ; shadow spacing                                 
-    call [rbx + EFI_BOOT_SERVICES.AllocatePool]
-    add rsp, 32                                 
-
-    ; populate the FILE struct
-    mov r12, [rel file_buffer]       ; R12 == wskaźnik do FILE
-    mov [r12 + FILE.FileSize], r14   ; rozmiar 
-
-    mov rax, r14
-    call malloc
-    test rax, rax
-    jz .allocation_failed
-    mov [rel temp_buffer_ptr], rax
-
-    ; read the file into memory
-    mov [r12 + FILE.BufferPtr], rax  ; saving the struct could be useful tho
-    mov qword [r12 + FILE.Cursor], 0
-
-    mov r8, r13
-    mov r9, r14                   ; R9 = rozmiar pliku
-    add r9, 2047                  ; round up to the nearest
-    and r9, ~0x7ff                 ; 2KB boundary
-    mov r10, [rel temp_buffer_ptr]
-    call read_sectors
-    test rax, rax                 ; Check if EFI_SUCCESS
     jnz .not_found
 
-    mov rax, r12
-    jmp .done
+    ; get file size (run to the end of the file and back)
+    mov rcx, [rel efi_file_handle]
+    mov rdx, 0xFFFFFFFFFFFFFFFF      ; EOF
+    mov rax, [rcx + EFI_FILE_PROTOCOL.SetPosition]
+    call rax
 
-.allocation_failed:
-    LOG "Unable to allocate."
-    xor rax, rax
-    jmp .done
+    mov rcx, [rel efi_file_handle]
+    lea rdx, [rel temp_file_size]
+    mov rax, [rcx + EFI_FILE_PROTOCOL.GetPosition]    
+    call rax
 
-.read_failure:
-    LOG "A generic read error occured."
-    xor rax, rax
+    mov rcx, [rel efi_file_handle]
+    xor rdx, rdx                     ; 0
+    mov rax, [rcx + EFI_FILE_PROTOCOL.SetPosition]    
+    call rax
+
+    ; allocate FILE struct (24 bytes)
+    mov rcx, 2                       ; EfiLoaderData
+    mov rdx, FILE_STRUCT_SIZE
+    lea r8, [rel temp_struct_ptr]
+    mov rbx, [rel boot_services_ptr]
+    call [rbx + EFI_BOOT_SERVICES.AllocatePool]
+    
+    ; allocate memory buffer for file data
+    mov rcx, 2
+    mov rdx, [rel temp_file_size]
+    lea r8, [rel temp_buffer_ptr]
+    call [rbx + EFI_BOOT_SERVICES.AllocatePool]
+
+    ; read the file into the buffer
+    mov rcx, [rel efi_file_handle]
+    lea rdx, [rel temp_file_size]    ; In/Out parameter
+    mov r8, [rel temp_buffer_ptr]
+    mov rax, [rcx + EFI_FILE_PROTOCOL.Read]   
+    call rax
+
+    ; close the UEFI file handle
+    mov rcx, [rel efi_file_handle]
+    mov rax, [rcx + EFI_FILE_PROTOCOL.Close]
+    call rax
+
+    ;populate struct andd run
+    mov r12, [rel temp_struct_ptr]
+    
+    mov rax, [rel temp_buffer_ptr]
+    mov [r12 + FILE.BufferPtr], rax
+    
+    mov rax, [rel temp_file_size]
+    mov [r12 + FILE.FileSize], rax
+    
+    mov qword [r12 + FILE.Cursor], 0
+    
+    mov rax, r12                   
     jmp .done
 
 .not_found:
-    xor rax, rax                  ; Return NULL
-    jmp .done
+    xor rax, rax                     ; Return NULL on failure
 .done:
-    pop r15
-    pop r14
-    pop r13
+    add rsp, 48
     pop r12
     pop rbx
     mov rsp, rbp
     pop rbp
     ret
-
-temp_buffer_ptr dq 0
-temp_struct_ptr dq 0
 
 ; ------------------------------------------------------------------------------
 ; fread
@@ -168,82 +162,65 @@ temp_struct_ptr dq 0
 ;   R8  - Pointer to FILE struct
 ; Outputs: RAX - Number of bytes actually read
 ; ------------------------------------------------------------------------------
+
 fread:
     mov rax, [r8 + FILE.FileSize]
-    sub rax, [r8 + FILE.Cursor]   ; RAX = remaining bytes in file
+    sub rax, [r8 + FILE.Cursor]   
     
     cmp rdx, rax
-    cmova rdx, rax                ; if requested > remaining, only read remaining
+    cmova rdx, rax                
     test rdx, rdx
-    jz .eof                       ; nothing to read
+    jz .eof                       
 
-    ; Copy memory
     push rsi
     push rdi
     push rcx
     
     mov rsi, [r8 + FILE.BufferPtr]
-    add rsi, [r8 + FILE.Cursor]   ; source = buffer + cursor
-    mov rdi, rcx                  ; destination = user buffer
-    mov rcx, rdx                  ; bytes to read
+    add rsi, [r8 + FILE.Cursor]   
+    mov rdi, rcx                  
+    mov rcx, rdx                  
     rep movsb                     
 
     pop rcx
     pop rdi
     pop rsi
 
-    ; Update Cursor
     add [r8 + FILE.Cursor], rdx
-    mov rax, rdx                  ; bytes read
+    mov rax, rdx                  
     ret
 
 .eof:
-    xor rax, rax                  ; NULL
+    xor rax, rax                  
     ret
 
 ; ------------------------------------------------------------------------------
 ; fclose
-; Frees the file data buffer (FreePages) and the FILE struct memory (FreePool).
-; Inputs:
-;   RCX - Pointer to FILE struct
+; releases both mempools (file data and the FILE struct) back to the firmware.
 ; ------------------------------------------------------------------------------
 fclose:
     push rbp
     mov rbp, rsp
-    
     push rbx
     push r12             
-    
     sub rsp, 32          
 
     mov r12, rcx         
     mov rbx, [rel boot_services_ptr]
 
-    ; free the buffer, this needs the page count again
-    mov rax, [r12 + FILE.FileSize]
-    add rax, 4095
-    shr rax, 12                      ; RAX = page count
+    ; free the file data buffer
+    mov rcx, [r12 + FILE.BufferPtr]  
+    call [rbx + EFI_BOOT_SERVICES.FreePool]
 
-    ; Setup arguments for FreePages
-    mov rdx, rax                     ; page count
-    mov rcx, [r12 + FILE.BufferPtr]  ; starting address
-    
-    call [rbx + EFI_BOOT_SERVICES.FreePages]
-
-    ; free the file struct
+    ; free the FILE struct
     mov rcx, r12                     
-    
     call [rbx + EFI_BOOT_SERVICES.FreePool]
 
     add rsp, 32
     pop r12
     pop rbx
+    mov rsp, rbp
     pop rbp
     ret
 
-struc FILE
-    .BufferPtr resq 1
-    .FileSize  resq 1  
-    .Cursor    resq 1 ; where are we?
-endstruc
-FILE_STRUCT_SIZE equ 24
+

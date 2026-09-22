@@ -178,3 +178,10 @@ add_custom_target(run_both DEPENDS compile_system
     "$<$<CONFIG:DEBUG>:-s>"
     "$<$<CONFIG:DEBUG>:-S>"
 )
+
+# debug: uruchom z fizycznego dysku USB podłączonego do stanowiska
+add_custom_target(run_usb
+    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/run_qemu_usb.sh" "${BIOS_PATH}"
+    COMMENT "Uruchamianie QEMU z fizycznego dysku USB..."
+    USES_TERMINAL
+)

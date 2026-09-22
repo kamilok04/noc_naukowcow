@@ -1,55 +1,22 @@
 ; ------------------------------------------------------------------------------
 ; init_mouse
-; Locates and resets the EFI_SIMPLE_POINTER_PROTOCOL
+; Triggers the first device scan and returns the active pointer for the event loop.
 ; ------------------------------------------------------------------------------
 init_mouse:
     push rbp
     mov rbp, rsp
-    push rbx
+    sub rsp, 32
     
-    ; 8 bytes for the 5th argument and align to 64 bytes
-    sub rsp, 56
-    mov rbx, [rel boot_services_ptr]
+    ; Reset tracking variables (Reusing existing .data variables)
+    mov qword [rel temp_ptr], 0          
+    mov qword [rel init_count], 0        
     
-    ; get all mouse handles
-    mov rcx, 2                           ; search by protocol
-    lea rdx, [rel GUID_SIMPLE_POINTER]   
-    xor r8, r8                           
-    lea r9, [rel handle_count]           
-  
-    
-    lea rax, [rel handle_buffer]
-    mov [rsp + 32], rax                  
-    
-    call [rbx + EFI_BOOT_SERVICES.LocateHandleBuffer]                     ; 
-    test rax, rax
-    jnz .error
-    ; LOG "%d mouse protocols located.", [rel handle_count]
+    call rescan_devices
 
-    ; get the last mouse ptr handle because VMs do stupid stuff sometimes
-    mov rax, [rel handle_count]
-    dec rax                              ; [-1]
-    mov rdx, [rel handle_buffer]
-    mov rcx, [rdx + rax * 8]             ; RCX = target hw handle
-    
-    lea rdx, [rel GUID_SIMPLE_POINTER]
-    lea r8, [rel mouse_ptr]
-    call [rbx + EFI_BOOT_SERVICES.HandleProtocol]     
-    
-    test rax, rax
-    jnz .error
-    
+    ; Return the active pointer in RCX for efi_main's .set_event
     mov rcx, [rel mouse_ptr]
-    mov rdx, 1                           ; ExtendedVerification = TRUE
-    mov rax, [rcx]
-    call rax
-    jmp .done
 
-.error:
-    LOG "Mouse Hardware Bind Failed! Code: %x", rax
-.done:
-    add rsp, 56
-    pop rbx
+    add rsp, 32
     pop rbp
     ret
 
@@ -60,7 +27,8 @@ init_mouse:
 update_mouse:
     push rbp
     mov rbp, rsp
-    sub rsp, 32
+    push rbx
+    sub rsp, 40
     
     mov rcx, [rel mouse_ptr]
     test rcx, rcx
@@ -126,7 +94,74 @@ update_mouse:
 .no_mouse:
     LOG "No mouse has been detected!"
 .done:
-    add rsp, 32
+    add rsp, 40
+    pop rbx
+    mov rsp, rbp
+    pop rbp
+    ret
+
+; ------------------------------------------------------------------------------
+; rescan_devices
+; Discovers the latest simple pointer device and updates the hardware event loop.
+; ------------------------------------------------------------------------------
+rescan_devices:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    sub rsp, 40
+    mov rbx, [rel boot_services_ptr]
+
+    mov qword [rel handle_buffer_size], 128
+    mov rcx, 2                           
+    lea rdx, [rel GUID_SIMPLE_POINTER]   
+    xor r8, r8                           
+    lea r9, [rel handle_buffer_size]           
+    lea rax, [rel handle_buffer]
+    mov [rsp + 32], rax                  
+    
+    call [rbx + EFI_BOOT_SERVICES.LocateHandle]                     
+    
+    test rax, rax
+    jnz .done
+
+    mov rax, [rel handle_buffer_size]
+    shr rax, 3                           
+    test rax, rax
+    jz .done
+
+    ; Get the last handle (most recently plugged in)
+    dec rax
+    lea rdx, [rel handle_buffer]
+    mov rcx, [rdx + rax * 8]
+
+    ; Check if it is a new device
+    cmp rcx, [rel temp_ptr]              
+    je .done
+
+    mov [rel temp_ptr], rcx
+    
+    ; Bind protocol
+    lea rdx, [rel GUID_SIMPLE_POINTER]
+    lea r8, [rel mouse_ptr]
+    call [rbx + EFI_BOOT_SERVICES.HandleProtocol]
+    test rax, rax
+    jnz .done
+
+    ; Reset device
+    mov rcx, [rel mouse_ptr]
+    mov rdx, 1
+    mov rax, [rcx + EFI_SIMPLE_POINTER_PROTOCOL.Reset]
+    call rax
+
+    ; Overwrite hardware event loop array with the new mouse's event
+    mov rcx, [rel mouse_ptr]
+    mov rax, [rcx + 16]                  
+    mov [rel wait_event_array], rax
+
+.done:
+    add rsp, 40
+    pop rbx
+    mov rsp, rbp
     pop rbp
     ret
 
@@ -511,7 +546,17 @@ process_mouse_input:
     mov rbp, rsp
     push r14
     push r15
-    xor r15, r15                       
+    sub rsp, 32  
+
+    ; don't rescan every single frame
+    inc qword [rel init_count]
+    cmp qword [rel init_count], 60       
+    jl .skip_rescan
+    mov qword [rel init_count], 0
+    call rescan_devices
+
+.skip_rescan:
+    xor r15, r15      
     mov r14, 16          ; ≤ 16 packets per frame please               
     
 .read_loop:
@@ -598,6 +643,7 @@ process_mouse_input:
     call push_cursor_region
 
 .done:
+    add rsp, 32
     pop r15
     pop r14
     pop rbp

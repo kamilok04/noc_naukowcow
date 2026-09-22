@@ -102,7 +102,10 @@ update_match_state:
     call verify_king_safety
     mov byte [rel is_in_check], al ; 1 -> check
     jmp .exit_update
-    ; LOG "Game on."
+    push rax
+    movzx eax, byte [rel valid_moves_count]
+    LOG "Game on. %d valid moves.", rax
+    pop rax
 
 .cleanup:
     ; only used on game conclusion

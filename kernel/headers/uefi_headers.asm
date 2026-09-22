@@ -113,6 +113,23 @@ struc EFI_SIMPLE_POINTER_STATE
     ._Padding           resb 2
 endstruc
 
+struc EFI_ABSOLUTE_POINTER_PROTOCOL
+    .Reset        resq 1 ; +0x00
+    .GetState     resq 1 ; +0x08
+    .WaitForInput resq 1 ; +0x10
+    .Mode         resq 1 ; +0x18
+endstruc
+
+struc EFI_ABSOLUTE_POINTER_STATE
+    .AbsoluteMinX resq 1 ; +0x00
+    .AbsoluteMinY resq 1 ; +0x08
+    .AbsoluteMinZ resq 1 ; +0x10
+    .AbsoluteMaxX resq 1 ; +0x18
+    .AbsoluteMaxY resq 1 ; +0x20
+    .AbsoluteMaxZ resq 1 ; +0x28
+    .Attributes   resd 1 ; +0x30
+endstruc
+
 struc EFI_TCP4_CONFIG_DATA
     .TypeOfService     resb 1
     .TimeToLive        resb 1
@@ -137,4 +154,41 @@ endstruc
 struc EFI_TCP4_LISTEN_TOKEN
     .CompletionToken resb 16 ;
     .NewChildHandle  resq 1  ; incoming client's handle here
+endstruc
+
+struc EFI_SIMPLE_FILE_SYSTEM_PROTOCOL
+    .Revision       resq 1 ; +0x00
+    .OpenVolume     resq 1 ; +0x08
+endstruc
+
+struc EFI_FILE_PROTOCOL
+    .Revision       resq 1 ; +0x00
+    .Open           resq 1 ; +0x08
+    .Close          resq 1 ; +0x10
+    .Delete         resq 1 ; +0x18
+    .Read           resq 1 ; +0x20
+    .Write          resq 1 ; +0x28
+    .GetPosition    resq 1 ; +0x30
+    .SetPosition    resq 1 ; +0x38
+    .GetInfo        resq 1 ; +0x40
+    .SetInfo        resq 1 ; +0x48
+    .Flush          resq 1 ; +0x50
+endstruc
+
+struc EFI_LOADED_IMAGE_PROTOCOL
+    .Revision        resd 1 ; +0x00 (UINT32)
+    .Pad1            resd 1 ; +0x04 (64-bit alignment padding)
+    .ParentHandle    resq 1 ; +0x08 (EFI_HANDLE)
+    .SystemTable     resq 1 ; +0x10 (EFI_SYSTEM_TABLE *)
+    .DeviceHandle    resq 1 ; +0x18 (EFI_HANDLE)
+    .FilePath        resq 1 ; +0x20 (EFI_DEVICE_PATH_PROTOCOL *)
+    .Reserved        resq 1 ; +0x28 (VOID *)
+    .LoadOptionsSize resd 1 ; +0x30 (UINT32)
+    .Pad2            resd 1 ; +0x34 (64-bit alignment padding)
+    .LoadOptions     resq 1 ; +0x38 (VOID *)
+    .ImageBase       resq 1 ; +0x40 (VOID *)
+    .ImageSize       resq 1 ; +0x48 (UINT64)
+    .ImageCodeType   resd 1 ; +0x50 (EFI_MEMORY_TYPE)
+    .ImageDataType   resd 1 ; +0x54 (EFI_MEMORY_TYPE)
+    .Unload          resq 1 ; +0x58 (EFI_IMAGE_UNLOAD)
 endstruc

@@ -19,29 +19,32 @@ is_on_board:
 ; Outputs: 
 ;   RAX = 1 if blocked by friendly piece, 0 otherwise
 ; Trashes:
-;   CL, DL
+;   ECX, EDX
 ; ------------------------------------------------------------------------------
 is_friendly_fire:
+    xor ecx, ecx
+    xor edx, edx
+
     ; source piece color
     cmp al, 7
-    setae al
+    setae cl
     
     ; target piece color
     cmp bl, 7
-    setae ah
+    setae dl
     
     ; compare, set AL if identical
-    cmp al, ah
-    sete al
+    cmp cl, dl
+    sete cl
     
     ; remove empty squares from the calculation
     ; 0 < 7, so an empty square is white up to here
     test bl, bl
-    setnz ah         ; AH = 1 if occupied
+    setnz dl         ; DL = 1 if occupied
     
     ; non-empty and colors match: friendly fire
-    and al, ah       
-    movzx rax, al    ; clear whatever could be in the upper bits
+    and cl, dl    
+    movzx rax, cl    ; clear whatever could be in the upper bits
     ret
 
 ; ------------------------------------------------------------------------------

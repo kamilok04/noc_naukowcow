@@ -19,6 +19,7 @@ efi_main:
     mov [rel image_handle], rcx
     sub rsp, 40              ; allocate 32 bytes shadow space + 8 bytes alignment
     mov r12, rdx             ; save SystemTable to non-volatile register
+    mov [rel system_table_ptr], r12 ; save to memory too, will be important later
 
     ; Log startup
     LOG "Booting."
@@ -74,7 +75,7 @@ efi_main:
     
     LOG "The GOP protocol located succesfully."
     
-    call set_max_resolution
+    call interactive_resolution_picker
 
     ; ask the framebuffer what it knows
     mov rbx, [rel gop_ptr]   
@@ -377,6 +378,9 @@ path_utf16 times 512 db 0
     info_size   dq 0
     info_ptr    dq 0
     COLOR_KEY      equ 0x00FF00FF    ; magenta
+    modes_count     dq 0
+    max_modes_array times 64 dq 0    ; Holds up to 64 packed mode configurations
+    str_modes_dbg   db "Modes: 00", 0
 
     ; chess graphics vars
     tile_size dd 0
@@ -475,7 +479,39 @@ path_utf16 times 512 db 0
     tr_move dd 0
     tr_y dd 0
 
-    
+    ; resolution picker
+    system_table_ptr  dq 0
+    input_key         dd 0           ; 4-byte EFI_INPUT_KEY struct
+    gop_modes_array   times 64 dd 0  ; cache up to 64 available ModeIDs
+    gop_modes_count   dd 0
+    current_gop_idx   dd 0           ; current array index
+    saved_gop_idx     dd 0           ; confirmed array index for fallback
+    res_confirm_timer dd 0           ; 10-second timeout tracker
+
+    ; ConOut
+    num_buffer times 12 dw 0
+    last_drawn_sec    dd -1
+
+    ; ya wish
+    ; UEFI spec 12.4.3 & 2.3.1
+    ; all strings are Supposed™ to be UCS-2 (fixed-width subset of UTF-16)
+    ; in real life, no vendor ever would sacrifice EEPROM space for the whole thing
+    ; so what? nothing, all of the UCS-2 chars are in fact accessible
+    ; but most of them point nowhere, the spec says nothing about *rendering* chars
+
+    ; again, using this would throw things sideways
+    ; maybe it wouldn't work, but it would be compliant :)) 
+
+    ; str_picked       db __?utf16?__(`\rWybrana rozdzielczość.     `), 0, 0
+    ; str_prompt       db __?utf16?__(`\r\n\r\nSTRZAŁKI - Zmiana\r\nENTER - Akceptuj\r\nESC - Anuluj\r\n`), 0, 0
+
+    str_picked       db __?utf16?__(`\rWybrano.               `), 0, 0 ; why so many spaces? to wipe the other string :)
+    str_prompt       db __?utf16?__(`\r\n\r\nLEWO/PRAWO - Zmiana\r\nENTER - Akceptuj\r\nESC - Anuluj\r\n`), 0, 0
+    str_time_confirm db __?utf16?__(`\rCzas na potwierdzenie: `), 0, 0
+    str_testing      db __?utf16?__(`Obecna rozdzielczosc: `), 0, 0
+    str_x            db __?utf16?__(` x `), 0, 0
+    str_spaces       db __?utf16?__(`   `), 0, 0
+
     ; GUIDs
     ; {5B1B31A1-9562-11D2-8E3F-00A0C969723B}
     GUID_LOADED_IMAGE:

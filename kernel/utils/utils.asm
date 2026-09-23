@@ -213,3 +213,30 @@ printf:
     pop rsi
     pop rbp
     ret
+
+; ------------------------------------------------------------------------------
+; uint_to_utf16 (Helper)
+; Converts a 32-bit integer in EAX into a UTF-16 string.
+; Returns: RAX = Pointer to the null-terminated UTF-16 string.
+; ------------------------------------------------------------------------------
+uint_to_utf16:
+    push rdx
+    push r8
+    push r9
+    lea r8, [rel num_buffer + 22]    ; 24 bytes because (-)(0-10 digits)(null)
+    mov word [r8], 0                 ; Null terminator
+    mov r9, 10
+.div_loop:
+    sub r8, 2
+    xor rdx, rdx
+    div r9                          
+    add dl, '0'                     
+    mov dh, 0                       
+    mov word [r8], dx                
+    test eax, eax
+    jnz .div_loop
+    mov rax, r8                      ; Return the starting pointer
+    pop r9
+    pop r8
+    pop rdx
+    ret

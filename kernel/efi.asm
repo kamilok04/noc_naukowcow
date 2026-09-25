@@ -49,7 +49,9 @@ efi_main:
     add rsp, 32                      ; Clean up shadow space
     
     call run_perft_suite ; very important
-    
+
+    call reset_game
+
     ; load the root directory
     call init_fs
     LOG "fs init ok"

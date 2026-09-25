@@ -9,12 +9,15 @@ update_match_state:
     push rcx
     push rdx
     push r8
+    push rsi
+    push rdi
 
     ; copy the board before making the move
     ; both boards need to be synced - for move detection and for SAN
     lea rsi, [rel board]
     lea rdi, [rel sandbox_board]
     mov rcx, 128                     ; 0x88 board is 128 bytes
+    cld
     rep movsb
 
     
@@ -95,6 +98,7 @@ update_match_state:
     lea rsi, [rel board]
     lea rdi, [rel sandbox_board]
     mov rcx, 128                     ; 0x88 board is 128 bytes
+    cld
     rep movsb
 
     
@@ -113,6 +117,8 @@ update_match_state:
     mov byte [rel valid_moves_count], 0
 
 .exit_update:
+    pop rdi
+    pop rsi
     pop r8
     pop rdx
     pop rcx

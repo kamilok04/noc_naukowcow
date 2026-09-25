@@ -127,18 +127,45 @@ check_castling:
     inc r9b
     jmp .wk_atk_loop
 
-.wk_safe:
-    movzx rax, byte [rel WRh_start]
-    movzx r8, byte [rel WK_start]
-    push rax
-    call add_valid_move
-    pop rax
+; The chess960 logic killed castling, which took Kiwipete-Perft (and the entire system) down
+; what happened:
+; in regular chess, the standard src-dest notation is e1c1/e1g1/e8c8/e8f8
+;    in human speak, "king moves two spaces towards the rook"
+; in C960, the standard notation is e1a1/e1h1/e8a8/e8h8
+;    in human speak, "king takes the rook"
 
+; This (totally fine) suggestion would go towards the add_valid_move
+; which performs a second-level check, but is ill-fitted towards C960
+; A move like e1a1 is never valid in standard chess, so the move got the boot
+
+; QA section
+; is this a real thing or is the engine made of chinesium?
+;   it's very much a real thing an king-takes-rook is The™ notation for
+;   C960-capable engines. This is why Kiwipete-Perft has a separate table for C960 results :)
+; why is regular Perft unaffected?
+;   regular Perft starts with the standard opening position.
+;   while it *is* a valid C960 position (seed 518), the regular starting position
+;   is assumed by default to be standard chess, which yields a different result sets
+;   for depths capable of castling. If you really intend to check against C960 pos. 518,
+;   refer to the oracle relevant to C960 :)
+
+.wk_safe:
+    ; movzx rax, byte [rel WRh_start]
+    ; movzx r8, byte [rel WK_start]
+    ; push rax
+    ; call add_valid_move
+    ; pop rax
+    movzx rax, byte [rel WRh_start]
+    movzx rcx, byte [rel valid_moves_count]
+    lea rbx, [rel valid_moves_list]
+    mov byte [rbx + rcx], al
+    inc rcx
+    mov byte [rel valid_moves_count], cl
 
 .white_queenside:
     ; o-o-o
     cmp byte [rel w_castle_q], 1
-    jne .check_black
+    jne .done ; only one player can castle in a move
     
     ; same idea with edge detection
     mov r9b, byte [rel WRa_start]
@@ -163,7 +190,7 @@ check_castling:
     lea rbx, [rel board]
     movzx r11, r9b
     cmp byte [rbx + r11], EMPTY
-    jne .check_black
+    jne .done
 .wq_empty_next:
     inc r9b
     jmp .wq_empty_loop
@@ -181,16 +208,22 @@ check_castling:
     movzx r8, r9b
     call is_square_attacked
     test rax, rax
-    jnz .check_black
+    jnz .done                            ; FIX: Do not route to Black castling on failure
     inc r9b
     jmp .wq_atk_loop
 
 .wq_safe:
+    ; movzx rax, byte [rel WRa_start]
+    ; movzx r8, byte [rel WK_start]
+    ; push rax
+    ; call add_valid_move
+    ; pop rax
     movzx rax, byte [rel WRa_start]
-    movzx r8, byte [rel WK_start]
-    push rax
-    call add_valid_move
-    pop rax
+    movzx rcx, byte [rel valid_moves_count]
+    lea rbx, [rel valid_moves_list]
+    mov byte [rbx + rcx], al
+    inc rcx
+    mov byte [rel valid_moves_count], cl
     jmp .done
 
 ; analogous logic for black castling
@@ -239,11 +272,17 @@ check_castling:
     jmp .bk_atk_loop
 
 .bk_safe:
+    ; movzx rax, byte [rel BRh_start]
+    ; movzx r8, byte [rel BK_start]
+    ; push rax
+    ; call add_valid_move
+    ; pop rax
     movzx rax, byte [rel BRh_start]
-    movzx r8, byte [rel BK_start]
-    push rax
-    call add_valid_move
-    pop rax
+    movzx rcx, byte [rel valid_moves_count]
+    lea rbx, [rel valid_moves_list]
+    mov byte [rbx + rcx], al
+    inc rcx
+    mov byte [rel valid_moves_count], cl
 
 .black_queenside:
     ; o-o-o
@@ -295,12 +334,18 @@ check_castling:
     jmp .bq_atk_loop
 
 .bq_safe:
+    ; movzx rax, byte [rel BRa_start]
+    ; movzx r8, byte [rel BK_start]
+    ; push rax
+    ; call add_valid_move
+    ; pop rax
     movzx rax, byte [rel BRa_start]
-    movzx r8, byte [rel BK_start]
-    push rax
-    call add_valid_move
-    pop rax
-
+    movzx rcx, byte [rel valid_moves_count]
+    lea rbx, [rel valid_moves_list]
+    mov byte [rbx + rcx], al
+    inc rcx
+    mov byte [rel valid_moves_count], cl
+    
 .done:
     pop r10
     pop r9

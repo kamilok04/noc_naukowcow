@@ -74,8 +74,8 @@ check_steps:
     jnz .ray_done            ; ZF = 0 -> out of bounds
     
     ; What is on the target square?
-    lea rbx, [rel board]
-    mov bl, byte [rbx + rdi] ; BL = target piece ID
+    lea rcx, [rel board]
+    mov bl, byte [rcx + rdi] ; BL = target piece ID
     
     push rax
     mov rax, r10             ; pass original piece ID

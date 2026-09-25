@@ -18,7 +18,7 @@ verify_king_safety:
 
 .find_king:
     xor r8, r8                       ; R8 = current square
-    lea rbx, [rel sandbox_board]
+    lea rbx, [rel board]
 
 .scan_loop:
     cmp byte [rbx + r8], cl          
@@ -33,7 +33,7 @@ verify_king_safety:
     cmp r8, 0x78                     ; we done?
     jl .scan_loop
     
-    mov rax, 1                       ; just in case...
+    xor rax, rax
     LOG "No king detected!"
     jmp .done
 
@@ -92,7 +92,7 @@ is_square_attacked:
     test rax, 0x88       ;
     jnz .next_knight
     
-    lea rbx, [rel sandbox_board]
+    lea rbx, [rel board]
     cmp byte [rbx + rax], cl
     je .is_attacked      ; hit a knight
                          ; the cool part about this is that I need not care how many knights are on the board
@@ -105,7 +105,7 @@ is_square_attacked:
 
     ; pawns don't use offsets and need to be considered separately
 .check_pawns:
-    lea rbx, [rel sandbox_board]
+    lea rbx, [rel board]
     mov al, byte [rel current_color]
     test al, al
     jnz .black_king_looking
@@ -175,7 +175,7 @@ is_square_attacked:
     test rax, 0x88
     jnz .next_ortho_dir      ; OOB, done
 
-    lea rbx, [rel sandbox_board]
+    lea rbx, [rel board]
     mov r10b, byte [rbx + rax]
     test r10b, r10b
     jz .ortho_ray_loop       ; empty, keep going
@@ -225,7 +225,7 @@ is_square_attacked:
     jnz .next_diag_dir
     ; LOG "sq %x", rax
 
-    lea rbx, [rel sandbox_board]
+    lea rbx, [rel board]
     mov r10b, byte [rbx + rax]
     test r10b, r10b
     jz .diag_ray_loop        ; analogous logic
@@ -264,7 +264,7 @@ is_square_attacked:
     test rax, 0x88
     jnz .next_king_dir
     
-    lea rbx, [rel sandbox_board]
+    lea rbx, [rel board]
     cmp byte [rbx + rax], cl
     je .is_attacked          ; "attacked" by the king
     

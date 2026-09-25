@@ -21,22 +21,23 @@ efi_main:
     mov r12, rdx             ; save SystemTable to non-volatile register
     mov [rel system_table_ptr], r12 ; save to memory too, will be important later
 
+    
     ; Log startup
     LOG "Booting."
     lea rax, [rel msg_printf_test]
     LOG "Printf test: %s", rax
-
-
+    
+    
     mov rbx, [r12 + 96]      ; RBX = SystemTable->BootServices
     mov [rel boot_services_ptr], rbx
-
+    
     ; kill the watchdog
     ; UEFI Spec
     ; 3.1.2: there is a 5-minute timer present
     ;        if it expires, reboot
     ; 7.5.1: a boot image may disable the watchdog
     ;        if it wants to
-
+    
     xor rcx, rcx                  ; no timeout
     xor rdx, rdx                  ; no error
     xor r8, r8                    ; nothing
@@ -46,11 +47,13 @@ efi_main:
     sub rsp, 32                      ; Allocate shadow space
     call [rbx + EFI_BOOT_SERVICES.SetWatchdogTimer]
     add rsp, 32                      ; Clean up shadow space
-
+    
+    call run_perft_suite ; very important
+    
     ; load the root directory
     call init_fs
     LOG "fs init ok"
-
+    
     ; try to read a file
     lea rcx, [rel target_file]
     LOG "Attempting to read %s", rcx
@@ -219,6 +222,13 @@ efi_main:
 .main_loop:
 ;     ; how many events are pending?
 ;     mov rcx, 1           
+    ; ya wish
+    ; UEFI spec 12.4.3 & 2.3.1
+    ; all strings are Supposed™ to be UCS-2 (fixed-width subset of UTF-16)
+    ; in real life, no vendor ever would sacrifice EEPROM space for the whole thing
+    ; so what? nothing, all of the UCS-2 chars are in fact accessible
+    ; but most of them point nowhere, the spec says nothing about *rendering* chars
+
 ;     cmp qword [rel wait_event_array + 8], 0
 ;     je .do_wait ; no network event, proceed
 ;     mov rcx, 2 ; two events incoming, expect both of them    
@@ -292,6 +302,8 @@ efi_main:
 %include "san_generator.asm"
 %include "random.asm"
 %include "960_generate_board.asm"
+%include "perft.asm"
+%include "make_move.asm"
 
 ; Pad .text to 8KB
 align 8192, db 0
@@ -492,6 +504,7 @@ path_utf16 times 512 db 0
     num_buffer times 12 dw 0
     last_drawn_sec    dd -1
 
+    
     ; ya wish
     ; UEFI spec 12.4.3 & 2.3.1
     ; all strings are Supposed™ to be UCS-2 (fixed-width subset of UTF-16)
@@ -511,6 +524,41 @@ path_utf16 times 512 db 0
     str_testing      db __?utf16?__(`Obecna rozdzielczosc: `), 0, 0
     str_x            db __?utf16?__(` x `), 0, 0
     str_spaces       db __?utf16?__(`   `), 0, 0
+
+    ; self test
+    perft_depths     dq 20, 400, 8902, 197281, 4865609
+
+
+
+    str_perft_run    db __?utf16?__(`\r\nRunning the perft...\r\n`), 0, 0
+    str_pertf_depth  db __?utf16?__(`\r\nDepth:  \r\n`), 0, 0
+    str_perft_pass   db __?utf16?__(`\r\nPASS: Good enough.\r\n`), 0, 0
+    str_perft_fail   db __?utf16?__(`\r\nFAIL: Node count mismatch! Halting.\r\n`), 0, 0
+    str_nodes        db __?utf16?__(`Nodes visited: `), 0, 0
+    str_div_start db __?utf16?__(`Failure detected. Generating Divide Perft report:\r\n`), 0, 0
+
+    ; divide perft
+    str_divide_fmt:
+    str_div_orig_f dw 'a'
+    str_div_orig_r dw '2'
+    str_div_targ_f dw 'a'
+    str_div_targ_r dw '3'
+                   dw ' ', '-', ' ', 0
+    str_newline    db __?utf16?__(`\r\n`), 0, 0
+
+    ; kiwipete perft
+    kiwipete_board:
+    db 10,  0,  0,  0, 12,  0,  0, 10,  0, 0, 0, 0, 0, 0, 0, 0 ; 0x00: r3k2r
+    db  7,  0,  7,  7, 11,  7,  9,  0,  0, 0, 0, 0, 0, 0, 0, 0 ; 0x10: p1ppqpb1
+    db  9,  8,  0,  0,  7,  8,  7,  0,  0, 0, 0, 0, 0, 0, 0, 0 ; 0x20: bn2pnp1
+    db  0,  0,  0,  1,  2,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0 ; 0x30: 3PN3
+    db  0,  7,  0,  0,  1,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0 ; 0x40: 1p2P3
+    db  0,  0,  2,  0,  0,  5,  0,  7,  0, 0, 0, 0, 0, 0, 0, 0 ; 0x50: 2N2Q1p
+    db  1,  1,  1,  3,  3,  1,  1,  1,  0, 0, 0, 0, 0, 0, 0, 0 ; 0x60: PPPBBPPP
+    db  4,  0,  0,  0,  6,  0,  0,  4,  0, 0, 0, 0, 0, 0, 0, 0 ; 0x70: R3K2R
+
+    kiwipete_depths  dq 48, 2039, 97862, 4085603, 193690690
+    str_kiwipete_run db __?utf16?__(`\r\nRunning Kiwipete Perft...\r\n`), 0, 0
 
     ; GUIDs
     ; {5B1B31A1-9562-11D2-8E3F-00A0C969723B}

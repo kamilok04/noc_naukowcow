@@ -12,3 +12,6 @@ assets/**
 
 # This deserves a separate few minutes in the spotlight
 rant.txt
+
+# this will be separate
+*.sh

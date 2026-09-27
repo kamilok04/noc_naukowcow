@@ -344,7 +344,15 @@ append_san_evaluations:
 .found:
 
     ; append a promotion, if any
+    cmp byte [rel is_remote_move], 1
+    je .remote_promotion
+
     mov al, byte [rel last_local_move + MOVE_PAYLOAD.Promotion]
+    jmp .check_promotion_val
+.remote_promotion:
+    ; remote party promoted, read details off the wire instead
+    mov al, byte [rel rx_data + MOVE_PAYLOAD.Promotion]
+.check_promotion_val:
     test al, al
     jz .check_mate
     mov byte [rdi], '='

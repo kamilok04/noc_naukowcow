@@ -14,7 +14,7 @@ run_perft_suite:
     push r15
     push rdi                         
     push rsi
-    sub rsp, 32
+    sub rsp, 8
 
 .run_standard:
     mov rbx, [rel system_table_ptr]
@@ -54,7 +54,7 @@ run_perft_suite:
     call .execute_depths
 
 .done:
-    add rsp, 32
+    add rsp, 8
     pop rsi
     pop rdi
     pop r15
@@ -67,6 +67,7 @@ run_perft_suite:
     ret
 
 .execute_depths:
+    sub rsp, 8
     mov r15, 1                       ; start at depth 1
 
 .main_perft_loop: 
@@ -121,6 +122,7 @@ run_perft_suite:
     inc r15
     cmp r15, 3; 5 ; speed up the actual POST testing
     jle .main_perft_loop
+    add rsp, 8
     ret
 
 .failed:
@@ -643,9 +645,7 @@ divide_perft:
 
     
 
-.next_square:
-    inc r14
-    jmp .square_loop
+
 
 .revert_move:
     ; pop the global state
@@ -672,6 +672,10 @@ divide_perft:
     pop rcx
     dec rcx
     jnz .move_loop
+
+.next_square:
+    inc r14
+    jmp .square_loop
 
 .exit_generate:
     mov rax, r13                     

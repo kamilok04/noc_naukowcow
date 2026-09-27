@@ -91,19 +91,17 @@ generate_chess960_board:
     ; 5. rooks & king
     ; grab the remaining empty squares
     ; first and third are rooks, second is king
-    mov r8b, 0
+    xor r8b, r8b
     call .place_nth_empty
     mov byte [rsp + rbx], W_ROOK
     mov byte [rel WRa_start], bl    
     add byte [rel WRa_start], 0x70   ; convert to 0x88 board notation
 
-    mov r8b, 0               
     call .place_nth_empty
     mov byte [rsp + rbx], W_KING
     mov byte [rel WK_start], bl      ; save king index
     add byte [rel WK_start], 0x70
 
-    mov r8b, 0               
     call .place_nth_empty
     mov byte [rsp + rbx], W_ROOK
     mov byte [rel WRh_start], bl     ; save h-side rook index

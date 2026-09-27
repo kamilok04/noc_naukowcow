@@ -1,131 +1,164 @@
 ; ------------------------------------------------------------------------------
 ; poll_network_events
-; Called once per frame in the main loop to check asynchronous network tasks.
+; Poll for events over SNP and see if anything came over TCP
 ; ------------------------------------------------------------------------------
 poll_network_events:
     push rbp
     mov rbp, rsp
     push rbx
-    sub rsp, 40 ; 8-byte alignment     
-    
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 56                      ; 16-byte aligned, space for 7 UEFI arguments
+
     cmp byte [rel net_role], NET_ROLE_OFFLINE
-    je .skip_poll   ; no networking in offline mode
+    je .done
+
+    cmp byte [rel active_protocol], PROTOCOL_SNP
+    je .check_state                  ; SNP requires no explicit driver poll
+
+.poll_tcp4:
     mov rcx, [rel tcp4_ptr]
     test rcx, rcx
-    jz .skip_poll                  
-    mov rax, [rcx + 0x48]        ; TCP4->Poll (unconditionally)
+    jz .check_state
+    mov rax, [rcx + EFI_TCP4_PROTOCOL.Poll]
     call rax
 
-.skip_poll:
-
-    ; Only poll the handshake if it's currently expected
-    ; LOG "Verifying the handshake"
+.check_state:
     cmp byte [rel connection_status], CONNECTION_STATE_CONNECTED
-    je .check_tx                    ; connected, skip
+    je .check_tx
     cmp byte [rel connection_status], CONNECTION_STATE_PENDING
-    jne .error
+    je .check_handshake
 
+    ; If offline but polling reached here, force net_role off to prevent an infinite loop
+    jmp .error
 
 .check_handshake:
-    ; BootServices->CheckEvent(handshake_event)
+    cmp byte [rel active_protocol], PROTOCOL_SNP
+    je .snp_handshake_poll           ;
+
     mov rcx, [rel handshake_event]
     mov rbx, [rel boot_services_ptr]
     mov rax, [rbx + EFI_BOOT_SERVICES.CheckEvent]
     call rax
-
     test rax, rax
     jnz .done                        ; EFI_NOT_READY
 
-    ; got event, get its status
-    mov rax, [rel token_handshake + EFI_TCP4_COMPLETION_TOKEN.Status] 
+    mov rax, [rel token_handshake + EFI_TCP4_COMPLETION_TOKEN.Status]
     test rax, rax
-    jnz .error                       ; status != 0 => the connection aborted/failed
+    jnz .error                       
 
-    ; we host?
     cmp byte [rel net_role], NET_ROLE_SERVER
-    jne .set_connected               ; clients need not do anything yet
+    jne .set_connected
 
 .host_extract_child:
-    ; an accepted connection is a brand new handle
-    mov rcx, [rel token_handshake + EFI_TCP4_LISTEN_TOKEN.NewChildHandle] 
+    mov rcx, [rel token_handshake + EFI_TCP4_LISTEN_TOKEN.NewChildHandle]
     lea rdx, [rel GUID_TCP4]
-    
-    ; overwrite the embryonic connection with the complete one
-    lea r8, [rel tcp4_ptr]    
-    mov rax, [rel boot_services_ptr]       
-    mov rax, [rax + EFI_BOOT_SERVICES.HandleProtocol]
+    lea r8, [rel tcp4_ptr]
+    mov rbx, [rel boot_services_ptr]
+    mov rax, [rbx + EFI_BOOT_SERVICES.HandleProtocol]
     call rax
     test rax, rax
     jnz .error
+    jmp .set_connected
+
+.snp_handshake_poll:
+
+    cmp byte [rel net_role], NET_ROLE_CLIENT
+    jne .jump_to_rx
+    
+    rdtsc
+    
+    shr eax, 26             
+    cmp al, byte [rel snp_beacon_timer]
+    je .jump_to_rx        ; whatever the clock speed is divided by 2^26
+    
+    mov byte [rel snp_beacon_timer], al 
+    
+    mov byte [rel snp_tx_buffer + 14], 0xEE
+    mov byte [rel snp_tx_buffer + 15], 0x00
+    mov byte [rel snp_tx_buffer + 16], 0x00
+    call broadcast_snp_packet
+
+.jump_to_rx:
+    jmp .check_rx
 
 
 .set_connected:
-    LOG "TCP Hardware Connected."
+    LOG "Network Connected."
     mov byte [rel connection_status], CONNECTION_STATE_CONNECTED
-    
     cmp byte [rel net_role], NET_ROLE_SERVER
     je .server_init
-    
+
 .client_init:
-    ; client expects a token and stays in the menu.
-    LOG "Client ready, waiting for the init token."
+    LOG "Client ready."
     call queue_network_rx
     jmp .done
-    
+
 .server_init:
-    ; servers spins everything up
-    call calculate_board_layout           
-    call render_playfield                 
-    call swap_buffers                     
-    mov byte [rel cursor_is_saved], 0     
-    mov byte [rel in_menu], MENU_STATE_IN_GAME
+    LOG "Initializing game as host."
+    movzx rdi, word [rel sync_payload + 1]
+    call generate_chess960_board ; get your own board!
     
-    ; client is allowed in, the game's initialize 
+    lea rsi, [rel initial_board]
+    lea rdi, [rel board]
+    mov rcx, 128
+    rep movsb
+
+    call calculate_board_layout
+    call render_playfield
+    call swap_buffers
+    mov byte [rel cursor_is_saved], 0
+    mov byte [rel in_menu], MENU_STATE_IN_GAME
+
     LOG "Attempting sync."
     call send_sync_packet
-
-    LOG "Listening for client data."
     call queue_network_rx
-
     jmp .done
 
 .error:
-    LOG "Connection failed! Code %x", rax
-    mov byte [rel connection_status], CONNECTION_STATE_OFFLINE   ; cannot connect, stay offline then
+    mov byte [rel connection_status], CONNECTION_STATE_OFFLINE
+    mov byte [rel net_role], NET_ROLE_OFFLINE
+    jmp .done
 
 .check_tx:
-    ; no TX when disconnected
-    cmp byte [rel connection_status], CONNECTION_STATE_CONNECTED
-    jne .check_rx
+    cmp byte [rel active_protocol], PROTOCOL_SNP
+    je .check_rx    ; huh? synchronous protocol is polled and async is not?
+                    ; this is alarming if you've ever done user-space networking
+                    ; this, however, is not user-space networking
 
-    ; TX ready?
+                    ; TCP is Expensive™ and this system is obviously single-threaded
+                    ; This would normally be delegated to a background worker thread,
+                    ; but we don't do any of that fancy stuff
+                    ; polling is necessary so thtat the main loop sees the event
+
+                    ; SNP, on the other hand, is almost trivial
+                    ; it's a direct read from the networking chip
+                    ; whatever is present gets copied, that's it, no processing
+
     mov rcx, [rel tx_event]
     mov rbx, [rel boot_services_ptr]
     mov rax, [rbx + EFI_BOOT_SERVICES.CheckEvent]
     call rax
-
     test rax, rax
-    jnz .check_rx                        ; EFI_NOT_READY (no TX yet)
+    jnz .check_rx
 
-    ; TX ready, did it get sent?
-    mov rax, [rel token_tx + 8]          ; token_tx.Status
+    mov rax, [rel token_tx + 8]
     test rax, rax
     jnz .tx_error
 
-    LOG "TX OK"
-    
-    mov rax, 0x8000000000000006          ; EFI_NOT_READY
+    mov rax, 0x8000000000000006      ; Rearm EFI_NOT_READY
     mov [rel token_tx + 8], rax
     jmp .check_rx
 
 .tx_error:
-    LOG "async TX failure! Code: %x", rax
+    LOG "TCP: TX failure! Code: %x", rax
     jmp .check_rx
 
 .check_rx:
-    ; connected and in menu?
-    cmp byte [rel connection_status], CONNECTION_STATE_CONNECTED
-    jne .done
+    cmp byte [rel active_protocol], PROTOCOL_SNP
+    je .snp_rx
 
     ; what arrived?
     mov rcx, [rel rx_event]
@@ -141,15 +174,88 @@ poll_network_events:
     test rax, rax
     jnz .error
 
-    ; is it the sync byte?
-    cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xAA
-    je .sync_ok                     ; nah
+    jmp .process_payload
 
-    ; is it the reset command?
+.snp_rx:
+    mov r12, [rel active_snp_count]
+    xor r13, r13
+.snp_rx_loop:
+    cmp r13, r12
+    jge .done
+    
+    lea rcx, [rel active_snp_ptrs]
+    mov rcx, [rcx + r13 * 8]
+
+    mov qword [rel snp_rx_size], 1500
+    xor rdx, rdx                     ; HeaderSize = 0
+    lea r8, [rel snp_rx_size]
+    lea r9, [rel snp_rx_buffer]
+    mov qword [rsp + 32], 0          ; SrcAddr = NULL
+    mov qword [rsp + 40], 0          ; DestAddr = NULL
+    mov qword [rsp + 48], 0          ; Protocol = NULL
+    
+    mov rax, [rcx + EFI_SIMPLE_NETWORK_PROTOCOL.Receive] 
+    call rax
+
+    test rax, rax
+    jz .snp_got_packet               
+    inc r13
+    jmp .snp_rx_loop
+
+.snp_got_packet:
+    ; is it the correct packet type?
+    mov ax, word [rel snp_rx_buffer + 12]
+    cmp ax, 0xB588 ; 0x88B5 is registered as an experimental ethertype 1
+                   ; it is Guaranteed™ to be left alone
+                   ; but any firewall on this planet should always drop packets of this type
+                   ; https://doi.org/10.1109/IEEESTD.2014.6847097
+                   ; https://www.iana.org/assignments/ieee-802-numbers#ieee-802-numbers-1
+
+    jne .snp_ignore
+
+    ; buffer also contains *sent* packets
+    ; check if whatever got picked is not ours
+    ; else, the host connects to itself and fun stuff happens
+    mov al, byte [rel snp_rx_buffer + 17]
+    cmp al, byte [rel net_role]
+    je .snp_ignore
+
+    ; good enough, grab the data
+    mov al, byte [rel snp_rx_buffer + 14]
+    mov byte [rel rx_data + MOVE_PAYLOAD.Origin], al
+    mov al, byte [rel snp_rx_buffer + 15]
+    mov byte [rel rx_data + MOVE_PAYLOAD.Destination], al
+    mov al, byte [rel snp_rx_buffer + 16]
+    mov byte [rel rx_data + MOVE_PAYLOAD.Promotion], al
+    jmp .process_payload
+
+.snp_ignore:
+    inc r13
+    jmp .snp_rx_loop
+
+.process_payload:
+    cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xAA
+    je .sync_ok
+
+.check_hello:
+    cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xEE
+    jne .check_reset
+    
+    ; only the server should be allowed to answer a client hello
+    cmp byte [rel net_role], NET_ROLE_SERVER
+    jne .rearm_rx
+    
+    cmp byte [rel connection_status], CONNECTION_STATE_PENDING
+    je .set_connected
+    
+    ; if we're here, the server is in-game, but the client is not; resend the sync packet
+    call send_sync_packet
+    jmp .rearm_rx
+
+.check_reset:
     cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xBB
     je .remote_reset
 
-    ; UI commands?
     cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xCC
     je .remote_offer_draw
     
@@ -159,18 +265,11 @@ poll_network_events:
     cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xCE
     je .remote_surrender
 
-    ; Filter out ACKs
-    ; 0x00 -> 0x00, which will never be a valid move
     mov al, byte [rel rx_data + MOVE_PAYLOAD.Origin]
     or al, byte [rel rx_data + MOVE_PAYLOAD.Destination]
     jz .rearm_rx
 
-    ;LOG "Remote move incoming"
     mov byte [rel is_remote_move], 1
-
-
-    ; this is the remote move logic
-    ; the network-connected opponent set this phase
 
     push rax
     push rbx
@@ -178,103 +277,90 @@ poll_network_events:
     movzx rax, byte [rel rx_data + MOVE_PAYLOAD.Origin]
     movzx rbx, byte [rel rx_data + MOVE_PAYLOAD.Destination]
     movzx rcx, byte [rel rx_data + MOVE_PAYLOAD.Promotion]
-    LOG "Incoming move: %x -> %x, promoting to %x", rax, rbx, rcx
     pop rcx
     pop rbx
     pop rax
-
 
     movzx r8, byte [rel rx_data + MOVE_PAYLOAD.Origin]
     mov byte [rel selected_square], 0xFF
     call the_chess_state_machine
 
-    ; set the move
     movzx r8, byte [rel rx_data + MOVE_PAYLOAD.Destination]
     call the_chess_state_machine
 
-    ; has there been a promotion?
     cmp byte [rel promotion_pending], 1
     jne .rearm_rx
     
-    ; skip the UI (the user doesn't get a chance at trying to move the enemy piece)
     movzx rbx, byte [rel promotion_sq]
     mov al, byte [rel rx_data + MOVE_PAYLOAD.Promotion]
     lea rcx, [rel board]
     mov byte [rcx + rbx], al
     mov byte [rel promotion_pending], 0
-    
-    ; resume logic, check against vital stuff
-    call promotion_interrupt_resolved 
-
+    call promotion_interrupt_resolved
+    jmp .rearm_rx
 .sync_ok:
-    LOG "Sync packet received! Entering game."
+    mov byte [rel connection_status], CONNECTION_STATE_CONNECTED
     movzx rdi, word [rel rx_data + MOVE_PAYLOAD.Destination] 
-    
-    call generate_chess960_board     ; Build initial_board using the host's seed
+    call generate_chess960_board     
     
     lea rsi, [rel initial_board]
     lea rdi, [rel board]
     mov rcx, 128
-    rep movsb                        ; copy to live board
+    rep movsb                        
 
     call calculate_board_layout           
     call render_playfield                 
     call swap_buffers                     
     mov byte [rel cursor_is_saved], 0     
     mov byte [rel in_menu], MENU_STATE_IN_GAME
-    
     jmp .rearm_rx
 
 .remote_reset:
-    LOG "Resetting the game per remote request."
-    xor byte [rel local_color], 1    ; swap visual perspective
-    call reset_game                  ; reset the memory state
-    
-    ; force the UI to reflect the reset immediately
+    xor byte [rel local_color], 1    
+    call reset_game                  
     call render_playfield
     call swap_buffers
     mov byte [rel cursor_is_saved], 0
-
     jmp .rearm_rx
 
 .remote_offer_draw:
-    LOG "Opponent offered a draw."
     mov dword [rel ui_action_state], ACTION_STATE_INCOMING_DRAW
     jmp .rearm_rx
 
 .remote_accept_draw:
-    LOG "Opponent accepted the draw."
     mov dword [rel ui_action_state], ACTION_STATE_DEFAULT
-    mov byte [rel match_state], 3        ; 3 = Stalemate/Draw
+    mov byte [rel match_state], 3        
     jmp .rearm_rx
 
 .remote_surrender:
-    LOG "Opponent surrendered."
     mov dword [rel ui_action_state], ACTION_STATE_DEFAULT
-    
-    ; white goes: 0, black goes: 1
-    ; white wins: 1, black wins: 2
-    ; just add 1!
     mov al, byte [rel local_color]
     inc al                           
     mov byte [rel match_state], al
     jmp .rearm_rx
 
 .rearm_rx:
-    mov byte [rel is_remote_move], 0         ; unlock TX
+    mov byte [rel is_remote_move], 0         
     mov dword [rel rx_packet_data + 4], 3
     mov dword [rel rx_packet_data + 16], 3
-    ; mov byte [rel rx_data], 0
-
+    
+    ; Do not draw the board if we are still waiting for the other player
+    cmp byte [rel in_menu], MENU_STATE_IN_GAME
+    jne .skip_draw
     call render_playfield
     call swap_buffers
-    mov byte [rel cursor_is_saved], 0
+.skip_draw:
 
+    mov byte [rel cursor_is_saved], 0
     call queue_network_rx
     jmp .done
 
 .done:
-    add rsp, 40
+    add rsp, 56
+    pop r15
+    pop r14
+    pop r13
+    pop r12
     pop rbx
     pop rbp
     ret

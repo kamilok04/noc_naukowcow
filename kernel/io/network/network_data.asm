@@ -45,6 +45,44 @@
 
     handshake_event  dq 0        ; EFI_EVENT 
 
+    ; SNP struc
+    struc EFI_SIMPLE_NETWORK_PROTOCOL
+    .Revision       resq 1 ; 0x00
+    .Start          resq 1 ; 0x08
+    .Stop           resq 1 ; 0x10
+    .Initialize     resq 1 ; 0x18
+    .Reset          resq 1 ; 0x20
+    .Shutdown       resq 1 ; 0x28
+    .ReceiveFilters resq 1 ; 0x30
+    .StationAddress resq 1 ; 0x38
+    .Statistics     resq 1 ; 0x40
+    .MCastIpToMac   resq 1 ; 0x48
+    .NvData         resq 1 ; 0x50
+    .GetStatus      resq 1 ; 0x58
+    .Transmit       resq 1 ; 0x60
+    .Receive        resq 1 ; 0x68
+    .WaitForPacket  resq 1 ; 0x70
+    .Mode           resq 1 ; 0x78 (Pointer to EFI_SIMPLE_NETWORK_MODE)
+    endstruc
+
+    struc EFI_TCP4_SERVICE_BINDING_PROTOCOL
+    .CreateChild  resq 1 ; 0x00
+    .DestroyChild resq 1 ; 0x08
+    endstruc
+
+    struc EFI_TCP4_PROTOCOL
+    .GetModeData  resq 1 ; 0x00
+    .Configure    resq 1 ; 0x08
+    .Routes       resq 1 ; 0x10
+    .Connect      resq 1 ; 0x18
+    .Accept       resq 1 ; 0x20
+    .Transmit     resq 1 ; 0x28
+    .Receive      resq 1 ; 0x30
+    .Close        resq 1 ; 0x38
+    .Cancel       resq 1 ; 0x40
+    .Poll         resq 1 ; 0x48
+    endstruc
+
     ; other network events
     rx_event dq 0
     tx_event dq 0
@@ -119,3 +157,34 @@
             at EFI_TCP4_LISTEN_TOKEN.CompletionToken, dq 0, 0
             at EFI_TCP4_LISTEN_TOKEN.NewChildHandle,  dq 0
         iend
+
+    ; dual-stack networking
+    PROTOCOL_NONE equ 0
+    PROTOCOL_TCP4 equ 1
+    PROTOCOL_SNP  equ 2
+    PROTOCOL_AUTO equ 3
+    active_protocol db PROTOCOL_AUTO
+
+    ; multiple NICs
+    snp_ptr dq 0
+    active_snp_count dq 0
+    active_snp_ptrs  times 16 dq 0
+
+    ; we need to somehow work with L2 protocols
+    ; imma just poll the opponent, maybe one day they'll pick up
+    snp_beacon_timer db 0 
+
+    align 8
+    mac_broadcast db 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+    mac_protocol  dw 0x88B5          
+
+    ;  SNP Rx/Tx -
+    align 8
+    snp_tx_buffer:
+        .DestMAC   times 6 db 0xFF   
+        .SrcMAC    times 6 db 0x00  
+        .EtherType dw 0xB588         
+        .Payload   times 50 db 0x00  ; 
+        align 8
+    snp_rx_buffer times 1500 db 0    ; standard ethernet packet size to absorb incoming frames
+    snp_rx_size   dq 1500            ; heard of big-packet attacks? this is the assumption these abuse

@@ -450,14 +450,16 @@ handle_mouse_click:
 
 ; ------------------------------------------------------------------------------
 ; check_promotion_click
-; Inputs: RCX = screen x, RDX = screen y
+; Inputs: RCX = screen x, RDX = screen y (mouse coordinates)
 ; Outputs: RAX = 1 if click was intercepted, RAX = 0 if normal board click
 ; ------------------------------------------------------------------------------
 check_promotion_click:
     cmp byte [rel promotion_pending], 1
     jne .not_intercepted
 
-    ; mirror the square based on client perspective
+    ; we still need to check the color
+    ; in offline play, black is up, white is down
+    ; in online play, the player is always up
     movzx rax, byte [rel promotion_sq]
     cmp byte [rel local_color], 1
     jne .no_flip_pclick
@@ -465,76 +467,78 @@ check_promotion_click:
     sub rbx, rax
     mov rax, rbx
 .no_flip_pclick:
-    
-    movzx rax, byte [rel promotion_sq]
+
+    ; get menu column
     mov r8, rax
     and r8, 0x0F
     
-    mov r10d, dword [rel tile_size]  ; load dynamic tile size
+    mov r10d, dword [rel tile_size] 
     imul r8, r10
-    add r8d, dword [rel board_x]     ; R8 = screen x
+    add r8d, dword [rel board_x]  ; x of base of the board
     
+    ;get the row
     shr rax, 4
+    mov r15, rax                     ; R15 = row
     imul rax, r10
-    add eax, dword [rel board_y]     ; RAX = screen y
+    add eax, dword [rel board_y]     
     
-    ; check x bounds (menu will appear on the promoted column)
+    ; check x
     cmp rcx, r8
-    jl .not_intercepted
-    add r8, r10                      ; add tile_size
+    jl .not_intercepted ; too far left
+    add r8, r10                      
     cmp rcx, r8
-    jge .not_intercepted
+    jge .not_intercepted ; too far right
     
-    ; check y index (this will determine the option picked)
-    mov r9, rdx              
-    sub r9, rax              
+    ; check direction and y
+    cmp r15, 4                       
+    jl .menu_goes_down
     
-    ; direction
-    mov bl, byte [rel current_color]
-    xor bl, byte [rel local_color]
-
-    test bl, bl
-    jnz .black_bounds
+.menu_goes_up:
+    ; this branch is unlikely
+    ; it requires a player of opposite color to promote in offline mode
+    mov r9, rax                      ; r9 = screen_y
+    add r9, r10                      ; r9 = screen_y + tile_size
+    dec r9                           ; r9 = screen_y + tile_size - 1 (bottom row of the tile)
+    sub r9, rdx                      ; r9 = (mouse_y - bottom_of_tile_y)
     
-.white_bounds:
+    ; tile index should be 0, 1, 2 or 3
     cmp r9, 0
     jl .not_intercepted
     mov r11, r10
-    imul r11, 4                      ; tile_size * 4
+    imul r11, 4
     cmp r9, r11
     jge .not_intercepted
     
     mov rax, r9
     xor rdx, rdx                 
-    div r10                          ; divide by tile_size
+    div r10
     jmp .execute
-    
-.black_bounds:
-    mov r9, rax
-    add r9, r10                      ; add tile_size
-    dec r9
-    sub r9, rdx 
 
+.menu_goes_down:
+    ; goin' down now
+    mov r9, rdx                      ; r9 = mouse_y
+    sub r9, rax                      ; r9 = mouse_y - screen_y
+
+    ; same border logic, but mirrored
     cmp r9, 0
     jl .not_intercepted
     mov r11, r10
-    imul r11, 4                      ; tile_size * 4
+    imul r11, 4
     cmp r9, r11
     jge .not_intercepted
     
     mov rax, r9
     xor rdx, rdx                 
-    div r10                          ; divide by tile_size
+    div r10                          
     
 .execute:
     call resolve_promotion
-    mov rax, 1
+    mov rax, 1                       ; that's a menu click
     ret
 
 .not_intercepted:
-    xor rax, rax
+    xor rax, rax                     ; nope
     ret
-
 
 ; ------------------------------------------------------------------------------
 ; process_mouse_input

@@ -47,11 +47,18 @@ efi_main:
     sub rsp, 32                      ; Allocate shadow space
     call [rbx + EFI_BOOT_SERVICES.SetWatchdogTimer]
     add rsp, 32                      ; Clean up shadow space
+
+    ; wipe the screen so that perft can be seen
+    mov rbx, [rel system_table_ptr]
+    mov rcx, [rbx + 64]              ; RCX = ConOut
+    sub rsp, 32
+    call [rcx + 48]                  ; EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL.ClearScreen
+    add rsp, 32
     
     call run_perft_suite ; very important
 
     call reset_game
-
+ 
     ; load the root directory
     call init_fs
     LOG "fs init ok"
@@ -520,7 +527,7 @@ path_utf16 times 512 db 0
     ; str_picked       db __?utf16?__(`\rWybrana rozdzielczość.     `), 0, 0
     ; str_prompt       db __?utf16?__(`\r\n\r\nSTRZAŁKI - Zmiana\r\nENTER - Akceptuj\r\nESC - Anuluj\r\n`), 0, 0
 
-    str_picked       db __?utf16?__(`\rWybrano.               `), 0, 0 ; why so many spaces? to wipe the other string :)
+    str_picked       db __?utf16?__(`\rWybrano.                    `), 0, 0 ; why so many spaces? to wipe the other string :)
     str_prompt       db __?utf16?__(`\r\n\r\nLEWO/PRAWO - Zmiana\r\nENTER - Akceptuj\r\nESC - Anuluj\r\n`), 0, 0
     str_time_confirm db __?utf16?__(`\rCzas na potwierdzenie: `), 0, 0
     str_testing      db __?utf16?__(`Obecna rozdzielczosc: `), 0, 0
@@ -548,19 +555,7 @@ path_utf16 times 512 db 0
                    dw ' ', '-', ' ', 0
     str_newline    db __?utf16?__(`\r\n`), 0, 0
 
-    ; kiwipete perft
-    kiwipete_board:
-    db 10,  0,  0,  0, 12,  0,  0, 10,  0, 0, 0, 0, 0, 0, 0, 0 ; 0x00: r3k2r
-    db  7,  0,  7,  7, 11,  7,  9,  0,  0, 0, 0, 0, 0, 0, 0, 0 ; 0x10: p1ppqpb1
-    db  9,  8,  0,  0,  7,  8,  7,  0,  0, 0, 0, 0, 0, 0, 0, 0 ; 0x20: bn2pnp1
-    db  0,  0,  0,  1,  2,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0 ; 0x30: 3PN3
-    db  0,  7,  0,  0,  1,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0 ; 0x40: 1p2P3
-    db  0,  0,  2,  0,  0,  5,  0,  7,  0, 0, 0, 0, 0, 0, 0, 0 ; 0x50: 2N2Q1p
-    db  1,  1,  1,  3,  3,  1,  1,  1,  0, 0, 0, 0, 0, 0, 0, 0 ; 0x60: PPPBBPPP
-    db  4,  0,  0,  0,  6,  0,  0,  4,  0, 0, 0, 0, 0, 0, 0, 0 ; 0x70: R3K2R
-
-    kiwipete_depths  dq 48, 2039, 97862, 4085603, 193690690
-    str_kiwipete_run db __?utf16?__(`\r\nRunning Kiwipete Perft...\r\n`), 0, 0
+    debug_y dw 50
 
     ; GUIDs
     ; {5B1B31A1-9562-11D2-8E3F-00A0C969723B}
@@ -603,7 +598,11 @@ path_utf16 times 512 db 0
         dd 0x65530bc7
         dw 0xa359, 0x410f
         db 0xb0, 0x10, 0x5a, 0xad, 0xc7, 0xec, 0x2b, 0x62
-
+    ; {A19832B9-AC25-11D3-9A2D-0090273FC14D}
+    GUID_SNP:
+        dd 0xA19832B9
+        dw 0xAC25, 0x11D3
+        db 0x9A, 0x2D, 0x00, 0x90, 0x27, 0x3F, 0xC1, 0x4D
 
 
 

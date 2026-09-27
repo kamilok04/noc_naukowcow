@@ -309,11 +309,10 @@ _draw_promotion_menu:
     push r12
     push r13
     push r14
+    push r15
 
     ; is there actually a promotion happening?
     cmp byte [rel promotion_pending], 1
-    jne .done
-cmp byte [rel promotion_pending], 1
     jne .done
 
     mov r10d, dword [rel tile_size]  ; dynamic size
@@ -331,22 +330,18 @@ cmp byte [rel promotion_pending], 1
 .no_flip_promo:
 
     ; get coords
-    movzx rax, byte [rel promotion_sq]
     mov rcx, rax
     and rcx, 0x0F
     imul rcx, r10
     add ecx, dword [rel board_x]     ; RCX = screen x
 
     shr rax, 4
+    mov r15, rax
     imul rax, r10
     add eax, dword [rel board_y]     ; RAX = screen y
     
     mov r12, rcx                     ; R12 = copy of X
     mov r13, rax                     ; R13 = copy of Y
-
-    ; which way should the menu go?
-    mov r15b, byte [rel current_color]
-    xor r15b, byte [rel local_color] ; 1: up, 0 : down
 
     ; draw a bkgd
     mov rdi, [rel backbuffer_ptr]
@@ -354,8 +349,9 @@ cmp byte [rel promotion_pending], 1
     mov rcx, r12                    
     
     mov rdx, r13                     ; starting y
-    cmp byte [rel current_color], 0
-    je .draw_bg
+    cmp r15, 4                       ; use piece's target row instead of color
+    jl .draw_bg
+
     
     mov r11, r10
     imul r11, 3                      ; tile_size * 3
@@ -371,11 +367,11 @@ cmp byte [rel promotion_pending], 1
     mov r14, 4                    
     mov r11d, dword [rel tile_size]  ; step size
 
-    cmp r15b, 0
-    je .pick_sprites
+    cmp r15, 4
+    jl .pick_sprites
     neg r11
+
 .pick_sprites:
-    
     cmp byte [rel current_color], 0
     jne .setup_black_sprites
     
@@ -385,7 +381,6 @@ cmp byte [rel promotion_pending], 1
 
 .setup_black_sprites:
     lea rbx, [rel promotion_lookup_b]
-    neg r11                          ; step up (-)
 
 .draw_sprites_loop:
     movzx rax, byte [rbx]            ; RAX = piece ID
@@ -400,7 +395,7 @@ cmp byte [rel promotion_pending], 1
     
     push r11
     push rbx
-    call draw_bitmap                 ; draw
+    call draw_bitmap_scaled                 ; draw
     pop rbx
     pop r11
     
@@ -410,6 +405,7 @@ cmp byte [rel promotion_pending], 1
     jnz .draw_sprites_loop
 
 .done:
+    pop r15
     pop r14
     pop r13
     pop r12

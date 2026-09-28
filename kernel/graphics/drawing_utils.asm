@@ -545,6 +545,8 @@ draw_char:
     push r9
     push r11
     push r12
+    push r14
+    push r15
 
 
 
@@ -599,6 +601,8 @@ draw_char:
     dec r9                            
     jnz .row_loop                     
     
+    pop r15
+    pop r14
     pop r12
     pop r11
     pop r9

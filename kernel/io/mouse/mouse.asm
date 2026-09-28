@@ -34,18 +34,51 @@ update_mouse:
     test rcx, rcx
     jz .no_mouse                 ; Safety check if mouse isn't loaded
 
+    ; ; zero the state because Life™
+    ; mov qword [rel mouse_state], 0
+    ; mov qword [rel mouse_state + 8], 0
+    ; mov qword [rel mouse_state + 16], 0
+    ; mov qword [rel mouse_state + 24], 0
+
     lea rdx, [rel mouse_state]
     mov rax, [rcx + EFI_SIMPLE_POINTER_PROTOCOL.GetState]
     call rax
     
     test rax, rax            ; EFI_SUCCESS (0)?
-    jnz .done                ; If not 0 (e.g., EFI_NOT_READY), no movement happened
+    ;jnz .done                ; If not 0 (e.g., EFI_NOT_READY), no movement happened
+    jz .process_movement
 
+    mov rbx, 0x8000000000000006
+    cmp rax, rbx
+    je .done                 ; No new devices, but the device is healthy
+    
+    ; something died, rescan
+    LOG "Forced mouse rescan."
+    mov qword [rel mouse_ptr], 0
+    jmp .done
+
+.process_movement:
     ; get deltas
     lea rbx, [rel mouse_state]
+
+    ; kill all inputs while RMB is held
+    ; what?
+    ; this is a Real Life™ fix
+    ; some UEFI is garbage and throws garbage into 
+    ; mouse registers while RMB is held, saves ROM apparently
+    ; dislike it? leave the boot services :)
+
+    cmp byte [rbx + 13], 0
+    je .apply_deltas
+
+    xor eax, eax
+    xor edx, edx
+    jmp .apply_sensitivity
+
+.apply_deltas:
     mov eax, dword [rbx + EFI_SIMPLE_POINTER_STATE.RelativeMovementX]
     mov edx, dword [rbx + EFI_SIMPLE_POINTER_STATE.RelativeMovementY]
-    
+.apply_sensitivity:
     ; sensitivity 
     imul eax, 2
     imul edx, 2
@@ -93,6 +126,7 @@ update_mouse:
 
 .no_mouse:
     LOG "No mouse has been detected!"
+    inc rax
 .done:
     add rsp, 40
     pop rbx
@@ -108,6 +142,9 @@ rescan_devices:
     push rbp
     mov rbp, rsp
     push rbx
+    push r12
+    push r13
+    push r14
     sub rsp, 40
     mov rbx, [rel boot_services_ptr]
 
@@ -124,42 +161,59 @@ rescan_devices:
     test rax, rax
     jnz .done
 
-    mov rax, [rel handle_buffer_size]
-    shr rax, 3                           
-    test rax, rax
+    mov r12, [rel handle_buffer_size]
+    shr r12, 3 ; /8                          
+    test r12, r12
     jz .done
-
-    ; Get the last handle (most recently plugged in)
-    dec rax
-    lea rdx, [rel handle_buffer]
-    mov rcx, [rdx + rax * 8]
-
-    ; Check if it is a new device
-    cmp rcx, [rel temp_ptr]              
-    je .done
-
-    mov [rel temp_ptr], rcx
     
-    ; Bind protocol
-    lea rdx, [rel GUID_SIMPLE_POINTER]
-    lea r8, [rel mouse_ptr]
-    call [rbx + EFI_BOOT_SERVICES.HandleProtocol]
-    test rax, rax
-    jnz .done
+    ; handle disconnection too, iterate over all connected devices
+    mov r13, r12
+    dec r13
+    lea r14, [rel handle_buffer]
 
-    ; Reset device
-    mov rcx, [rel mouse_ptr]
+.test_handle:
+    cmp r13, 0
+    jl .done ; all devices done
+
+    mov rcx, [r14 + r13 * 8]
+
+    ; what's that device, give me its protocol
+    lea rdx, [rel GUID_SIMPLE_POINTER]
+    lea r8, [rel temp_ptr]
+    mov rax, [rbx + EFI_BOOT_SERVICES.HandleProtocol]
+    call rax  
+
+    test rax, rax
+    jnz .next_handle 
+
+    ; it's responding, try enabling it
+    mov rcx, [rel temp_ptr]
     mov rdx, 1
     mov rax, [rcx + EFI_SIMPLE_POINTER_PROTOCOL.Reset]
     call rax
 
-    ; Overwrite hardware event loop array with the new mouse's event
-    mov rcx, [rel mouse_ptr]
+    test rax, rax
+    jz .found_ok
+
+.next_handle:
+    dec r13
+    jmp .test_handle
+
+.found_ok:
+    mov rcx, [rel temp_ptr]
+
+    cmp rcx, [rel mouse_ptr]
+    je .done
+
+    mov [rel mouse_ptr], rcx
     mov rax, [rcx + 16]                  
     mov [rel wait_event_array], rax
 
 .done:
     add rsp, 40
+    pop r14
+    pop r13
+    pop r12
     pop rbx
     mov rsp, rbp
     pop rbp
@@ -178,6 +232,7 @@ handle_mouse_click:
     push rdx
     push r10
     push r11
+    push r12
 
     ; get mouse coordinates
     mov ecx, dword [rel mouse_x]
@@ -203,7 +258,6 @@ handle_mouse_click:
     ; cancelled, revert to main menu
     call network_teardown
     mov byte [rel in_menu], MENU_STATE_MAIN
-    ; TCP abort will go here, eventually
     jmp .done
     
 
@@ -219,17 +273,28 @@ handle_mouse_click:
     sub edi, 150
     cmp ecx, edi
     jl .done
-    add edi, 300
+    add edi, 400
     cmp ecx, edi
     jge .done
+
+    ; compute Y, like in graphics
+    mov r12d, dword [rel screen_h]
+    shr r12d, 1
+    mov edi, r12d
+    add edi, 350
+    cmp edi, dword [rel screen_h]
+    jle .hitbox_y_ok
     
-    ; height check
-    mov eax, dword [rel screen_h]
-    shr eax, 1
+    mov r12d, dword [rel screen_h]
+    sub r12d, 350
+    cmp r12d, 10
+    jge .hitbox_y_ok
+    mov r12d, 10
+
+.hitbox_y_ok:
     
     ; host btn
-    mov edi, eax
-    ;sub edi, 100
+    mov edi, r12d ; R12D is the base Y
     cmp r8d, edi
     jl .select_c960
     add edi, 50
@@ -237,7 +302,7 @@ handle_mouse_click:
     jl .select_host
     
     ; join btn
-    mov edi, eax
+    mov edi, r12d
     add edi, 100
     cmp r8d, edi
     jl .select_c960
@@ -246,7 +311,7 @@ handle_mouse_click:
     jl .select_join
     
     ; offline btn
-    mov edi, eax
+    mov edi, r12d
     add edi, 200
     cmp r8d, edi
     jl .select_c960
@@ -256,7 +321,7 @@ handle_mouse_click:
 
 
     ; c960 btn
-    mov edi, eax
+    mov edi, r12d
     add edi, 300
     cmp r8d, edi
     jl .done
@@ -333,8 +398,7 @@ handle_mouse_click:
     jg .done          ; too far right
 
 
-    mov eax, dword [rel screen_h]
-    shr eax, 1
+    mov eax, r12d
     add eax, 300
     cmp r8d, eax
     jl .done           ; too high
@@ -440,6 +504,7 @@ handle_mouse_click:
     mov byte [rel valid_moves_count], 0
 
 .done:
+    pop r12 
     pop r11
     pop r10
     pop rdx
@@ -552,11 +617,15 @@ process_mouse_input:
     push r15
     sub rsp, 32  
 
-    ; don't rescan every single frame
-    inc qword [rel init_count]
-    cmp qword [rel init_count], 60       
-    jl .skip_rescan
-    mov qword [rel init_count], 0
+    cmp qword [rel mouse_ptr], 0
+    jne .skip_rescan
+
+    rdtsc
+    shr eax, 27
+    cmp al, byte [rel init_count]
+    je .skip_rescan 
+
+    mov byte [rel init_count], al
     call rescan_devices
 
 .skip_rescan:
@@ -575,6 +644,10 @@ process_mouse_input:
 
 .flush_queue:
     mov rcx, [rel mouse_ptr]
+
+    test rcx, rcx
+    jz .check_draw 
+
     xor rdx, rdx                       
     mov rax, [rcx + EFI_SIMPLE_POINTER_PROTOCOL.Reset]          
     sub rsp, 32

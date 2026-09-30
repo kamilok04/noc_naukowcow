@@ -489,31 +489,40 @@ calculate_board_layout:
     add ecx, dword [rel board_y]
     mov dword [rel popup_y], ecx
     
-    ; btn_w = 2 * tile_size
+   ; width of a button = 3/2 * tile_size
     mov ecx, eax
-    shl ecx, 1
-    mov dword [rel btn_w], ecx
-    
-    ; btn_h = 0.5 * tile_size
-    mov ecx, eax
-    shr ecx, 1
-    mov dword [rel btn_h], ecx
-    
-    ; btn_x = popup_x + 1.5 * tile_size (Right-aligned under the text)
-    mov ecx, dword [rel popup_x]
-    add ecx, eax
     mov ebx, eax
     shr ebx, 1
     add ecx, ebx
-    mov dword [rel btn_x], ecx
+    mov dword [rel btn_w], ecx
+    mov dword [rel btn2_w], ecx
     
-    ; btn_y = popup_y + 1.25 * tile_size
-    mov ecx, dword [rel popup_y]
-    add ecx, eax
+    ; height = 3/8 * tile_size
+    mov ecx, eax
+    imul ecx, 3
+    shr ecx, 3
+    mov dword [rel btn_h], ecx
+    mov dword [rel btn2_h], ecx
+    
+    ; X axis for both btns
+    mov ecx, dword [rel popup_x]
+    add ecx, eax                 
     mov ebx, eax
-    shr ebx, 2
-    add ecx, ebx
+    shr ebx, 1
+    add ecx, ebx                 ; btn_x = popup_x + 1.5 * tile_size
+    mov dword [rel btn_x], ecx
+    mov dword [rel btn2_x], ecx
+    
+    ; Y axis for the btn
+    mov ecx, dword [rel popup_y]
+    add ecx, eax                 
     mov dword [rel btn_y], ecx
+    
+    add ecx, dword [rel btn_h]
+    mov ebx, eax
+    shr ebx, 3                   
+    add ecx, ebx
+    mov dword [rel btn2_y], ecx
     
 
 calculate_transcript_layout:

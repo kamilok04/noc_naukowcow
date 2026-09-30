@@ -175,6 +175,10 @@ popup_w    dd 0
 popup_h    dd 0
 btn_w      dd 0
 btn_h      dd 0
+btn2_w     dd 0
+btn2_h     dd 0
+btn2_x     dd 0
+btn2_y     dd 0
 
 text_scale dd 3
 

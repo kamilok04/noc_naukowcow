@@ -361,6 +361,7 @@ data_rva equ text_rva + text_vsize
     str_menu_host    db "Graj jako gospodarz", 0
     str_menu_join    db "Graj jako gość", 0
     str_menu_offline db "Graj offline", 0
+    str_menu_exit db "Do menu", 0
 
     ; my ptrs
     test_file_handle dq 9
@@ -408,6 +409,7 @@ path_utf16 times 512 db 0
     board_x dd 0
     board_y dd 0
     local_color dd 0 ; 0: white on bottom, 1: black on bottom
+    popup_text_scale dd 1 ; endgame popup
 
     ; async events
     align 8

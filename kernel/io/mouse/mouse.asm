@@ -424,19 +424,19 @@ handle_mouse_click:
     ; check if the click is inside the restart button
     mov edi, dword [rel btn_x]
     cmp ecx, edi
-    jl .done                      ; too far left
+    jl .check_menu_btn                      ; too far left
     add edi, dword [rel btn_w]
     cmp ecx, edi
-    jge .done                     ; too far right
+    jge .check_menu_btn                     ; too far right
     
     mov edi, dword [rel btn_y]
     cmp r8d, edi
-    jl .done                      ; too far above
+    jl .check_menu_btn                      ; too far above
     add edi, dword [rel btn_h]
     cmp r8d, edi
-    jge .done                     ; too far below
-    
-    
+    jge .check_menu_btn                     ; too far below
+
+
     ; wydaj polecenie restartu
     cmp byte [rel net_role], NET_ROLE_OFFLINE
     je .do_reset
@@ -445,11 +445,57 @@ handle_mouse_click:
     mov dl, 0xBB
     xor r8b, r8b
     call send_network_move
-.do_reset:
-    xor byte [rel local_color], 1 ; podmień kolory
-    call reset_game               ; ok; restart
-    jmp .done                     ; nie pozwalaj na nic poza kliknięciem przycisku "rewanż"
 
+    cmp byte [rel chess960_mode], 1
+    jne .send_reset
+    
+    ; C960 regeneration
+    call generate_random_seed        ;
+    call generate_chess960_board     ;
+    mov dl, dil                      ; from low byte of seed
+    shr di, 8
+    mov r8w, di                     ; to high byte of seed
+    
+.send_reset:
+    call send_network_move
+    jmp .finish_reset
+
+.do_reset:
+    ; C960 offline mode, regenerate without sending
+    cmp byte [rel chess960_mode], 1
+    jne .finish_reset
+    
+    call generate_random_seed
+    call generate_chess960_board
+    
+.finish_reset:
+    xor byte [rel local_color], 1    ; swap colors, does it even make sense offline? 
+    call reset_game                  ;
+    jmp .done                        ; 
+
+.check_menu_btn:
+    ; exit btn
+    mov edi, dword [rel btn2_x]
+    cmp ecx, edi
+    jl .done                      
+    add edi, dword [rel btn2_w]
+    cmp ecx, edi
+    jge .done                     
+    
+    mov edi, dword [rel btn2_y]
+    cmp r8d, edi
+    jl .done                      
+    add edi, dword [rel btn2_h]
+    cmp r8d, edi
+    jge .done                     
+
+    ; exit, kill the network
+    call network_teardown
+    call reset_game
+    mov byte [rel in_menu], MENU_STATE_MAIN
+    jmp .done
+
+    
 .game_is_active:
     mov rdx, r11 
     call check_promotion_click

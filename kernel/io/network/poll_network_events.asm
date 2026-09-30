@@ -316,7 +316,21 @@ poll_network_events:
     jmp .rearm_rx
 
 .remote_reset:
-    xor byte [rel local_color], 1    
+    xor byte [rel local_color], 1    ; Zmiana stron
+    
+    cmp byte [rel chess960_mode], 1
+    jne .skip_remote_regen
+    
+    ; C960: a seed arrived
+    movzx rdi, byte [rel rx_data + MOVE_PAYLOAD.Promotion] ; hi byte
+    shl rdi, 8                                        
+    movzx rax, byte [rel rx_data + MOVE_PAYLOAD.Destination] ; lo byte
+    or rdi, rax                                          
+    
+    ; generate the board based on this
+    call generate_chess960_board
+    
+.skip_remote_regen:
     call reset_game                  
     call render_playfield
     call swap_buffers

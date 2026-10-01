@@ -1,3 +1,21 @@
+; THIS IS A LEGACY FILE
+
+; An ISO9660 driver is absolutely not needed for a project like this.
+; This is a remainder from my older project, which was a dual BIOS/UEFI bootloader
+; into a freestanding operating system.
+
+; It's the *freestanding* part that needs this file, not the bootloader.
+; As we choose to never exit BootServices, this driver is redundant.
+; Firmware does the exact same thing under the hood anyway.
+
+; in fact, calling this folder 'kernel' is over-the-top
+; this is all just a bootloader, a real OS would leave this state ASAP
+; and spin up an actual kernel.
+
+; This project is NOT a freestanding system. Why?
+; That would involve writing a VGA driver, as we use a GUI,
+; which in itself is much more complex than this entire project.
+
 ; ==============================================================================
 ; iso9660.inc - Primary Volume Descriptor & Directory Records
 ; ==============================================================================

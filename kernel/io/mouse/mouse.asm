@@ -484,14 +484,18 @@ handle_mouse_click:
     xor r8b, r8b
 
     ; only the server is allowed to generate a seed.
-    cmp byte [rel chess960_mode], 1
-    jne .send_bb
     cmp byte [rel net_role], NET_ROLE_SERVER
     jne .send_bb
+
+    cmp byte [rel chess960_mode], 1
+    jne .standard_seed
     
     call generate_random_seed
-    call generate_chess960_board
+    call .pack_seed
+.standard_seed:
+    mov di, 518 ; standard™ seed
     
+.pack_seed:
     mov dl, dil                              
     mov r8w, di
     shr r8w, 8                              

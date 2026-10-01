@@ -328,8 +328,8 @@ poll_network_events:
 
 .remote_reset:
     ; C960 remote reset
-    cmp byte [rel chess960_mode], 1
-    jne .check_rematch_state
+    ; cmp byte [rel chess960_mode], 1
+    ; jne .check_rematch_state
     cmp byte [rel net_role], NET_ROLE_CLIENT
     jne .check_rematch_state
     

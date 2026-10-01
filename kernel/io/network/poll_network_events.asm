@@ -256,6 +256,9 @@ poll_network_events:
     cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xBB
     je .remote_reset
 
+    cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xCF  ; opp left
+    je .remote_left
+
     cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xCC
     je .remote_offer_draw
     
@@ -300,6 +303,9 @@ poll_network_events:
     jmp .rearm_rx
 .sync_ok:
     mov byte [rel connection_status], CONNECTION_STATE_CONNECTED
+
+    mov byte [rel rematch_state], 0 ; reset the match state, you will never start in an endgame
+
     movzx rdi, word [rel rx_data + MOVE_PAYLOAD.Destination] 
     call generate_chess960_board     
     
@@ -315,20 +321,39 @@ poll_network_events:
     mov byte [rel in_menu], MENU_STATE_IN_GAME
     jmp .rearm_rx
 
+.remote_left:
+    mov byte [rel rematch_state], 3  ; opponent left, you shall not click the button
+                                     ; even if you do, you don't
+    jmp .rearm_rx
+
 .remote_reset:
-    xor byte [rel local_color], 1    ; Zmiana stron
-    
+    ; C960 remote reset
     cmp byte [rel chess960_mode], 1
-    jne .skip_remote_regen
+    jne .check_rematch_state
+    cmp byte [rel net_role], NET_ROLE_CLIENT
+    jne .check_rematch_state
     
-    ; C960: a seed arrived
-    movzx rdi, byte [rel rx_data + MOVE_PAYLOAD.Promotion] ; hi byte
+    movzx rdi, byte [rel rx_data + MOVE_PAYLOAD.Promotion]
     shl rdi, 8                                        
-    movzx rax, byte [rel rx_data + MOVE_PAYLOAD.Destination] ; lo byte
+    movzx rax, byte [rel rx_data + MOVE_PAYLOAD.Destination] 
     or rdi, rax                                          
-    
-    ; generate the board based on this
     call generate_chess960_board
+
+.check_rematch_state:
+    cmp byte [rel rematch_state], 1
+    je .remote_accepts               ; rematch accepted
+
+    ; reamtch pending (on us)
+    mov byte [rel rematch_state], 2
+    jmp .rearm_rx
+    
+.remote_accepts:
+    xor byte [rel local_color], 1    
+    call reset_game                 
+    call render_playfield
+    call swap_buffers
+    mov byte [rel cursor_is_saved], 0
+    jmp .rearm_rx
     
 .skip_remote_regen:
     call reset_game                  

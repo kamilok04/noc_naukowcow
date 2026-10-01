@@ -362,6 +362,8 @@ data_rva equ text_rva + text_vsize
     str_menu_join    db "Graj jako gość", 0
     str_menu_offline db "Graj offline", 0
     str_menu_exit db "Do menu", 0
+    str_rematch_wait db "Czekaj..", 0
+    str_rematch_acc db "Akceptuj", 0
 
     ; my ptrs
     test_file_handle dq 9
@@ -557,7 +559,11 @@ path_utf16 times 512 db 0
                    dw ' ', '-', ' ', 0
     str_newline    db __?utf16?__(`\r\n`), 0, 0
 
-    debug_y dw 50
+    ; networked rematch
+    rematch_state db 0  ; 0: no rematch
+                        ; 1: offered and pending response
+                        ; 2: been offered and responding
+                        ; 3: opponent gone
 
     ; GUIDs
     ; {5B1B31A1-9562-11D2-8E3F-00A0C969723B}

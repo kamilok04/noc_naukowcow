@@ -413,55 +413,104 @@ handle_mouse_click:
     jmp .done
     
 .in_game:
-    ; LOG "Mouse Y = %d", r8
-    call handle_ui_click ; UI goes first because transcript
+    call handle_ui_click 
     test rax, rax
     jnz .done
 
     cmp byte [rel match_state], 0
     je .game_is_active
     
-    ; check if the click is inside the restart button
+    ; exit btn
+    mov edi, dword [rel btn2_x]
+    cmp ecx, edi
+    jl .check_rematch_btn                    ; too far left
+    add edi, dword [rel btn2_w]
+    cmp ecx, edi
+    jge .check_rematch_btn                   ; too far right
+    
+    mov edi, dword [rel btn2_y]
+    cmp r8d, edi
+    jl .check_rematch_btn                    ; too high
+    add edi, dword [rel btn2_h]
+    cmp r8d, edi
+    jge .check_rematch_btn                   ; too low
+
+    ; hit - back to menu btn
+    cmp byte [rel net_role], NET_ROLE_OFFLINE
+    je .do_exit
+
+    ; we're online? not anymore, eat dust
+    mov cl, 0xCF                     
+    mov dl, 0xCF
+    xor r8b, r8b
+    call send_network_move
+    
+.do_exit:
+    call network_teardown
+    call reset_game
+    mov byte [rel in_menu], MENU_STATE_MAIN
+    jmp .done
+
+  
+.check_rematch_btn:
+    cmp byte [rel rematch_state], 3
+    je .done                                 ; opp dared to leave, ignore
+    cmp byte [rel rematch_state], 1
+    je .done                                 ; response already pending, ignore
+
     mov edi, dword [rel btn_x]
     cmp ecx, edi
-    jl .check_menu_btn                      ; too far left
+    jl .done                                
     add edi, dword [rel btn_w]
     cmp ecx, edi
-    jge .check_menu_btn                     ; too far right
+    jge .done                               
     
     mov edi, dword [rel btn_y]
     cmp r8d, edi
-    jl .check_menu_btn                      ; too far above
+    jl .done                            
     add edi, dword [rel btn_h]
     cmp r8d, edi
-    jge .check_menu_btn                     ; too far below
+    jge .done                     ; too far below
+
+    LOG "rematch clicked"
 
 
-    ; wydaj polecenie restartu
     cmp byte [rel net_role], NET_ROLE_OFFLINE
     je .do_reset
-    
-    mov cl, 0xBB                  ; 0xBB = pole-komenda
+
+    ; online? it's a rematch then, send a "rematch accepted" packet
+    mov cl, 0xBB                  
     mov dl, 0xBB
     xor r8b, r8b
+
+    ; only the server is allowed to generate a seed.
+    cmp byte [rel chess960_mode], 1
+    jne .send_bb
+    cmp byte [rel net_role], NET_ROLE_SERVER
+    jne .send_bb
+    
+    call generate_random_seed
+    call generate_chess960_board
+    
+    mov dl, dil                              
+    mov r8w, di
+    shr r8w, 8                              
+    
+.send_bb:
     call send_network_move
 
-    cmp byte [rel chess960_mode], 1
-    jne .send_reset
-    
-    ; C960 regeneration
-    call generate_random_seed        ;
-    call generate_chess960_board     ;
-    mov dl, dil                      ; from low byte of seed
-    shr di, 8
-    mov r8w, di                     ; to high byte of seed
-    
-.send_reset:
-    call send_network_move
-    jmp .finish_reset
+    cmp byte [rel rematch_state], 2
+    je .do_reset                             ; we accepted, ready to reset
+
+    mov byte [rel rematch_state], 1          ; we offered, wait for opponent
+    jmp .done
 
 .do_reset:
-    ; C960 offline mode, regenerate without sending
+    xor byte [rel local_color], 1            
+    
+    ; offline play - don't communicate seed regeneration over the wire
+    cmp byte [rel net_role], NET_ROLE_OFFLINE
+    jne .finish_reset
     cmp byte [rel chess960_mode], 1
     jne .finish_reset
     
@@ -469,31 +518,8 @@ handle_mouse_click:
     call generate_chess960_board
     
 .finish_reset:
-    xor byte [rel local_color], 1    ; swap colors, does it even make sense offline? 
-    call reset_game                  ;
-    jmp .done                        ; 
-
-.check_menu_btn:
-    ; exit btn
-    mov edi, dword [rel btn2_x]
-    cmp ecx, edi
-    jl .done                      
-    add edi, dword [rel btn2_w]
-    cmp ecx, edi
-    jge .done                     
-    
-    mov edi, dword [rel btn2_y]
-    cmp r8d, edi
-    jl .done                      
-    add edi, dword [rel btn2_h]
-    cmp r8d, edi
-    jge .done                     
-
-    ; exit, kill the network
-    call network_teardown
-    call reset_game
-    mov byte [rel in_menu], MENU_STATE_MAIN
-    jmp .done
+    call reset_game                  
+    jmp .done                        
 
     
 .game_is_active:

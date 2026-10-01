@@ -40,14 +40,27 @@ draw_endgame_popup:
     mov r9d, dword [rel popup_h]
     mov r10d, COLOR_POPUP_BG
     call draw_rectangle
+
+    cmp byte [rel rematch_state], 3
+    je .draw_exit_btn                ; opponent left, don't draw rematch btn
+
     
-    ; draw the btn
+    ; draw the rematch btn
     mov ecx, dword [rel btn_x]
     mov edx, dword [rel btn_y]
     mov r8d, dword [rel btn_w]
     mov r9d, dword [rel btn_h]
+; if the state is non-zero, change the color
     mov r10d, COLOR_BTN_BG
+    cmp byte [rel rematch_state], 0
+    jg .change_rematch_bg
+    jmp .draw_rematch_btn
+.change_rematch_bg:
+    mov r10d, COLOR_BLUE
+.draw_rematch_btn:
     call draw_rectangle
+
+.draw_exit_btn:
 
     mov ecx, dword [rel btn2_x]
     mov edx, dword [rel btn2_y]
@@ -117,7 +130,26 @@ draw_endgame_popup:
     mov r13d, dword [rel popup_text_scale]
     call draw_string
 
-    mov ecx, dword [rel btn2_x]
+    cmp byte [rel rematch_state], 3
+    je .draw_exit_text               ; opponent left, no text for ya
+
+    cmp byte [rel rematch_state], 1
+    je .text_wait
+    cmp byte [rel rematch_state], 2
+    je .text_acc
+    
+    lea r8, [rel popup_btn_str]      ; "Rewanż"
+    jmp .draw_rematch_string
+.text_wait:
+    lea r8, [rel str_rematch_wait]   ; "Czekaj.."
+    jmp .draw_rematch_string
+
+.text_acc:
+    lea r8, [rel str_rematch_acc]
+
+.draw_rematch_string:
+
+    mov ecx, dword [rel btn_x]
     mov ebx, dword [rel btn_w]
     shr ebx, 1
     add ecx, ebx
@@ -134,12 +166,12 @@ draw_endgame_popup:
     imul eax, dword [rel popup_text_scale]
     sub edx, eax                 ; center vertically
 
-    lea r8, [rel popup_btn_str]
     mov r10d, COLOR_WHITE
     mov r13d, dword [rel popup_text_scale]
     call draw_string
 
     ; menu btn 
+.draw_exit_text:
     mov ecx, dword [rel btn2_x]
     mov ebx, dword [rel btn2_w]
     shr ebx, 1

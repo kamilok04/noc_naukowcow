@@ -9,6 +9,8 @@ reset_game:
     push rsi
     push rdi
 
+    mov byte [rel rematch_state], 0 ; no rematch yet
+
     ; restore the board
     lea rsi, [rel initial_board]
     lea rdi, [rel board]

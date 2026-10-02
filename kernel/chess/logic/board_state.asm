@@ -259,3 +259,6 @@ zobrist_castling times 4 dq 0         ; 4 types of castling rights
 zobrist_ep       times 8 dq 0         ; 8 possible EP columns
 zobrist_history  times 1024 dq 0      ; buffer for values
 history_count    dq 0
+
+; 50 move clause
+half_move_clock dw 0         ; counts consecutive half-moves which are neither captures nor pawn moves

@@ -134,6 +134,11 @@ update_match_state:
     jge .offer_draw
     jmp .exit_update
 
+    cmp word [rel half_move_clock], 100   ; 50 moves = 100 half-moves
+    jge .offer_draw                       ; keep offering a draw
+    
+    jmp .exit_update
+
 .force_draw:
     LOG "5-fold repetition! Forcing draw."
     mov byte [rel match_state], 3

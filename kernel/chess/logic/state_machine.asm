@@ -89,6 +89,25 @@ the_chess_state_machine:
 
     mov cl, byte [rbx + rdx]         ; CL = moving piece ID
     mov r10b, byte [rbx + r8]        ; R10B = target piece ID
+
+    ; 50-move clock
+    cmp cl, 1                        ; w pawn?
+    je .reset_clock
+    cmp cl, 7                        ; b pawn?
+    je .reset_clock
+    test r10b, r10b                  ; capture?
+    jnz .reset_clock                 ; note: this does NOT include en passant
+                                     ; it's very much not a problem
+                                     ; conveniently, EPs are exclusive to pawns
+                                     ; either of the pawn clauses will catch EP
+    
+    inc word [rel half_move_clock]   ; neither, bump the clock
+    jmp .clock_done
+    
+.reset_clock:
+    mov word [rel half_move_clock], 0
+
+.clock_done:
     push rdx
     push r8
     push rcx

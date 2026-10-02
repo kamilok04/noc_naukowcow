@@ -105,11 +105,48 @@ update_match_state:
 
     call verify_king_safety
     mov byte [rel is_in_check], al ; 1 -> check
+
+    ; repetition check
+    call compute_zobrist
+    mov rbx, [rel history_count]
+    lea rdi, [rel zobrist_history]
+    mov [rdi + rbx * 8], rax         ; save the current hash
+    inc qword [rel history_count]
+    
+    xor rcx, rcx
+    xor rdx, rdx     ; RDX = repetition count
+                     ; it should be at least 1 at all times 
+                     ; (current position DID happen, didn't it?)
+.count_reps:
+    cmp rcx, [rel history_count]
+    jge .eval_reps
+    cmp rax, [rdi + rcx * 8]
+    jne .next_rep
+    inc rdx
+.next_rep:
+    inc rcx
+    jmp .count_reps
+    
+.eval_reps:
+    cmp rdx, 5
+    jge .force_draw
+    cmp rdx, 3
+    jge .offer_draw
     jmp .exit_update
-    push rax
-    movzx eax, byte [rel valid_moves_count]
-    LOG "Game on. %d valid moves.", rax
-    pop rax
+
+.force_draw:
+    LOG "5-fold repetition! Forcing draw."
+    mov byte [rel match_state], 3
+    jmp .exit_update
+    
+.offer_draw:
+    LOG "3-fold repetition! Offering draw."
+    ; this computation is offline, delegate drawing draw UI to each party
+    mov dword [rel ui_action_state], ACTION_STATE_INCOMING_DRAW 
+    jmp .exit_update
+
+
+   
 
 .cleanup:
     ; only used on game conclusion

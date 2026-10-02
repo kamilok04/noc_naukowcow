@@ -252,4 +252,10 @@ db  4,  0,  0,  0,  6,  0,  0,  4,  0, 0, 0, 0, 0, 0, 0, 0 ; 0x70: R3K2R
 kiwipete_depths  dq 48, 2039, 97862, 4085603, 193690690
 str_kiwipete_run db __?utf16?__(`\r\nRunning Kiwipete Perft...\r\n`), 0, 0
 
-    
+; Zobrist hashing
+zobrist_pieces   times 13 * 64 dq 0  ; 13 types of piece, 64 board indices
+zobrist_color    dq 0                 ; is black?
+zobrist_castling times 4 dq 0         ; 4 types of castling rights
+zobrist_ep       times 8 dq 0         ; 8 possible EP columns
+zobrist_history  times 1024 dq 0      ; buffer for values
+history_count    dq 0

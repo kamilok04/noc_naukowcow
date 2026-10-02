@@ -57,6 +57,8 @@ efi_main:
     
     call run_perft_suite ; very important
 
+    call init_zobrist
+
     call reset_game
  
     ; load the root directory
@@ -313,6 +315,7 @@ efi_main:
 %include "960_generate_board.asm"
 %include "perft.asm"
 %include "make_move.asm"
+%include "zobrist.asm"
 
 ; Pad .text to 8KB
 align 8192, db 0

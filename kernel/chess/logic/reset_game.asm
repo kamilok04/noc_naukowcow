@@ -44,6 +44,9 @@ reset_game:
 
     ; engage transcript auto-scroll again
     mov dword [rel ui_manual_scroll], -1
+
+    ; clear repetition history
+    mov qword [rel history_count], 0
     
     call reset_start_trackers
 

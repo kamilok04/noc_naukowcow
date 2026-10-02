@@ -148,36 +148,56 @@ rescan_devices:
     sub rsp, 40
     mov rbx, [rel boot_services_ptr]
 
-    mov qword [rel handle_buffer_size], 128
+
     mov rcx, 2                           
     lea rdx, [rel GUID_SIMPLE_POINTER]   
     xor r8, r8                           
-    lea r9, [rel handle_buffer_size]           
-    lea rax, [rel handle_buffer]
+    lea r9, [rel temp_file_size]         
+    lea rax, [rel temp_buffer_ptr]       ;
     mov [rsp + 32], rax                  
     
-    call [rbx + EFI_BOOT_SERVICES.LocateHandle]                     
+    mov rax, [rbx + EFI_BOOT_SERVICES.LocateHandleBuffer]
+    call rax                     
     
     test rax, rax
-    jnz .done
+    jnz .no_devices
 
-    mov r12, [rel handle_buffer_size]
-    shr r12, 3 ; /8                          
-    test r12, r12
-    jz .done
+    mov r12, [rel temp_file_size]        ; R12 = device count
+    mov r14, [rel temp_buffer_ptr]       ; R14 = handle table
     
-    ; handle disconnection too, iterate over all connected devices
+    ; does the mouse still exist?
+    mov rcx, [rel mouse_ptr]
+    test rcx, rcx
+    jz .find_new
+
+    xor r13, r13
+.check_existing:
+    cmp r13, r12
+    jge .mouse_lost                      ; nah
+    mov rax, [r14 + r13 * 8]
+    cmp rax, rcx
+    je .cleanup                          
+    inc r13
+    jmp .check_existing
+
+.mouse_lost:
+    ; I am having a bad feeling about this code,
+    ; as this branch is hit *very* frequently.
+    ; The code seems to work flawlessly, though.
+    ;LOG "Mouse disconnected!"
+    mov qword [rel mouse_ptr], 0
+
+.find_new:
+    ; look over what's available then
     mov r13, r12
     dec r13
-    lea r14, [rel handle_buffer]
 
 .test_handle:
     cmp r13, 0
-    jl .done ; all devices done
+    jl .cleanup                          ; nothing is
 
     mov rcx, [r14 + r13 * 8]
 
-    ; what's that device, give me its protocol
     lea rdx, [rel GUID_SIMPLE_POINTER]
     lea r8, [rel temp_ptr]
     mov rax, [rbx + EFI_BOOT_SERVICES.HandleProtocol]
@@ -186,7 +206,6 @@ rescan_devices:
     test rax, rax
     jnz .next_handle 
 
-    ; it's responding, try enabling it
     mov rcx, [rel temp_ptr]
     mov rdx, 1
     mov rax, [rcx + EFI_SIMPLE_POINTER_PROTOCOL.Reset]
@@ -201,13 +220,20 @@ rescan_devices:
 
 .found_ok:
     mov rcx, [rel temp_ptr]
-
-    cmp rcx, [rel mouse_ptr]
-    je .done
-
     mov [rel mouse_ptr], rcx
     mov rax, [rcx + 16]                  
     mov [rel wait_event_array], rax
+    ;LOG "New mouse connected!"
+
+.cleanup:
+
+    mov rcx, [rel temp_buffer_ptr]
+    mov rax, [rbx + EFI_BOOT_SERVICES.FreePool]
+    call rax
+    jmp .done
+
+.no_devices:
+    mov qword [rel mouse_ptr], 0
 
 .done:
     add rsp, 40
@@ -478,35 +504,47 @@ handle_mouse_click:
     cmp byte [rel net_role], NET_ROLE_OFFLINE
     je .do_reset
 
-    ; online? it's a rematch then, send a "rematch accepted" packet
-    mov cl, 0xBB                  
-    mov dl, 0xBB
-    xor r8b, r8b
-
-    ; only the server is allowed to generate a seed.
+    ; only server can authorise a restart
     cmp byte [rel net_role], NET_ROLE_SERVER
-    jne .send_bb
+    jne .set_client_packet
 
     cmp byte [rel chess960_mode], 1
     jne .standard_seed
     
+    ; C960, generate a seed
     call generate_random_seed
-    call .pack_seed
+    push rdi                                  
+    call generate_chess960_board             ; server draws its own board first
+    pop rdi
+    jmp .pack_seed                           ;
+
 .standard_seed:
-    mov di, 518 ; standard™ seed
-    
+    ; force standard seed
+    mov di, 518 
+    push rdi
+    call generate_chess960_board             ; 
+    pop rdi
+
 .pack_seed:
-    mov dl, dil                              
+    ; send seed to client
+    mov cl, 0xBB                             ; Origin
+    mov dl, dil                              ; low byte
     mov r8w, di
-    shr r8w, 8                              
+    shr r8w, 8                               ; hi byte
+    jmp .send_bb
+
+.set_client_packet:
+    ; client can only ACK a restart
+    mov cl, 0xBB                             
+    mov dl, 0xBB                             ;
+    xor r8b, r8b                            
     
 .send_bb:
-    call send_network_move
+    call send_network_move                   
 
     cmp byte [rel rematch_state], 2
-    je .do_reset                             ; we accepted, ready to reset
-
-    mov byte [rel rematch_state], 1          ; we offered, wait for opponent
+    je .do_reset                             ; ACK received, seed present, restart
+    mov byte [rel rematch_state], 1          ; No ACK, wait
     jmp .done
 
 .do_reset:
@@ -693,8 +731,8 @@ process_mouse_input:
     push r15
     sub rsp, 32  
 
-    cmp qword [rel mouse_ptr], 0
-    jne .skip_rescan
+    ; cmp qword [rel mouse_ptr], 0
+    ; jne .skip_rescan
 
     rdtsc
     shr eax, 27

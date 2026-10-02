@@ -254,10 +254,26 @@ poll_network_events:
 
 .check_reset:
     cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xBB
-    je .remote_reset
+    jne .check_left
+
+    ; ignore random rematch packets
+    cmp byte [rel match_state], 0
+    je .rearm_rx
+    
+    jmp .remote_reset
+
+.check_left:
 
     cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xCF  ; opp left
-    je .remote_left
+    jne .check_draw
+
+    ; it's impossible for anyone to leave while the game is ongoing.
+    cmp byte [rel match_state], 0
+    je .rearm_rx
+    
+    jmp .remote_left
+
+.check_draw:
 
     cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xCC
     je .remote_offer_draw

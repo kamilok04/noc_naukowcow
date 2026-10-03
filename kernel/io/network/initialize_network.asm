@@ -399,6 +399,16 @@ broadcast_snp_packet:
     mov rax, [rcx + EFI_SIMPLE_NETWORK_PROTOCOL.Transmit]
     call rax
     
+    ; allow the card to actually transmit that
+    push rcx                    
+    mov rcx, 5000                    ; 5ms
+    mov rbx, [rel boot_services_ptr]
+    mov rax, [rbx + 248]             ; EFI_BOOT_SERVICES.Stall
+    sub rsp, 40               
+    call rax
+    add rsp, 40                   
+    pop rcx
+
     inc r13
     jmp .loop
 .done:
@@ -552,7 +562,12 @@ send_network_move:
     push rbp
     mov rbp, rsp
     sub rsp, 32
-    
+
+    cmp cl, 0xDD
+    je .skip_ack_set                 ; Do not require an ACK of an ACK
+    mov byte [rel ack_pending], 1 
+.skip_ack_set:
+        
     cmp byte [rel active_protocol], PROTOCOL_SNP
     je .snp_tx
 

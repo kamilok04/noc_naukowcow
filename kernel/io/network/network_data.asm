@@ -148,9 +148,13 @@
             at .Destination, db 0
             at .Promotion,   db 0
         iend
-
-    
-
+    align 8
+    last_remote_move: 
+        istruc MOVE_PAYLOAD
+            at .Origin,      db 0
+            at .Destination, db 0
+            at .Promotion,   db 0
+        iend
     align 8
     token_handshake:
         istruc EFI_TCP4_LISTEN_TOKEN  ; large enough to act as a Connection Token
@@ -186,5 +190,8 @@
         .EtherType dw 0xB588         
         .Payload   times 50 db 0x00  ; 
         align 8
-    snp_rx_buffer times 1500 db 0    ; standard ethernet packet size to absorb incoming frames
-    snp_rx_size   dq 1500            ; heard of big-packet attacks? this is the assumption these abuse
+    snp_rx_buffer times 4096 db 0    ; standard ethernet packet size to absorb incoming frames
+    snp_rx_size   dq 4096            ; heard of big-packet attacks? this is the assumption these abuse
+    recycled_tx_buf dq 0             ; TX buffers need to be actively cleared, otherwise they get full and don't TX anymore
+    interrupt_status dd 0
+    needs_ack db 0

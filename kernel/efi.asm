@@ -567,6 +567,8 @@ path_utf16 times 512 db 0
                         ; 1: offered and pending response
                         ; 2: been offered and responding
                         ; 3: opponent gone
+    ; sync SNP
+    ack_pending db 0
 
     ; GUIDs
     ; {5B1B31A1-9562-11D2-8E3F-00A0C969723B}

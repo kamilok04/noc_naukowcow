@@ -770,11 +770,15 @@ process_mouse_input:
     
 
 .check_draw:
-    test r15, r15
-    jz .done                             
+    cmp byte [rel cursor_is_saved], 0    ; UI remote change WILL wipe the cursor out of existence
+    je .force_draw                       ; if that happened, force a redraw
+
+    test r15, r15                        ; did the mouse just move?
+    jz .done                             ; then it's ok, skip a redraw
     
+.force_draw:
     movzx eax, byte [rel mouse_state + 12] 
-    movzx ebx, byte [rel prev_lmb_state]   
+    movzx ebx, byte [rel prev_lmb_state]                          
 
     cmp bl, 1
     jne .save_mouse_state
@@ -809,6 +813,34 @@ process_mouse_input:
 
 .save_mouse_state:
     mov byte [rel prev_lmb_state], al
+
+    ; this is a real life fix
+    ; while a mouse button is held, the device WILL
+    ; blast packets as long as the button is held
+
+    ; these often involve a delta of 0,
+    ; which would trigger flickering
+    ; when a mouse button is held w/o movement
+
+    ; let's stop that :) 
+
+    cmp byte [rel cursor_is_saved], 0       ; cursor is gone, redraw instantly 
+    je .do_redraw
+
+    ; is a delta-x present?
+    mov ecx, dword [rel mouse_x]
+    cmp ecx, dword [rel saved_cursor_x]
+    jne .do_redraw
+    
+    ; is a delta-y present?
+    mov edx, dword [rel mouse_y]
+    cmp edx, dword [rel saved_cursor_y]
+    jne .do_redraw
+
+    ; no movement, skip redrawing
+    jmp .done
+
+.do_redraw:
     ; copy background from below cursor
     call restore_cursor_background
     

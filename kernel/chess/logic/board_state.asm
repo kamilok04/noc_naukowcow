@@ -23,15 +23,18 @@
 ; BOARD_START_X  equ 100           ; margin of 100
 ; BOARD_START_Y  equ 100           ; margin of 100
 
-COLOR_LIGHT    equ 0x00F0D9B5    ; light wood-ish
-COLOR_DARK     equ 0x00B58863    ; dark wood-ish
+COLOR_LIGHT     equ 0x00F0D9B5   ; light wood-ish
+COLOR_DARK      equ 0x00B58863   ; dark wood-ish
 COLOR_HIGHLIGHT equ 0x007FA650   ; g r e e n
 COLOR_PROMOTION equ 0x00D3D3D3   ; grey
 COLOR_RED       equ 0x00ff0000
 COLOR_GREEN     equ 0x0000ff00
 COLOR_BLUE      equ 0x000000ff
-COLOR_BG        equ 0x008ab4f8    ; light blue
+COLOR_BG        equ 0x008ab4f8   ; light blue
 COLOR_WHITE     equ 0x00ffffff
+COLOR_OK        equ 0x0033AA33   ; greenish
+COLOR_INFO      equ 0x003333AA   ; blueish
+COLOR_NO        equ 0x00AA3333   ; radish
 
 ; 0 = blank square
 ; 1-6 = white (PNBRQK in this order)
@@ -80,7 +83,7 @@ path_btn_ok       db "ASSETS\CHESS\OK.BMP", 0
 path_btn_no       db "ASSETS\CHESS\NO.BMP", 0
 path_btn_back     db "ASSETS\CHESS\BACK.BMP", 0
 path_btn_forward  db "ASSETS\CHESS\FORWARD.BMP", 0
-
+path_btn_exit     db "ASSETS\CHESS\EXIT.BMP", 0
 
 ; Valid movements
 ; Knight:
@@ -167,18 +170,19 @@ POPUP_H         equ 240
 POPUP_TEXT_H    equ 50
 
 
-popup_x dd 0
-popup_y dd 0
-btn_x   dd 0
-btn_y   dd 0
-popup_w    dd 0
-popup_h    dd 0
-btn_w      dd 0
-btn_h      dd 0
-btn2_w     dd 0
-btn2_h     dd 0
-btn2_x     dd 0
-btn2_y     dd 0
+popup_x      dd 0
+popup_y      dd 0
+btn_x        dd 0
+btn_y        dd 0
+popup_w      dd 0
+popup_h      dd 0
+btn_w        dd 0
+btn_h        dd 0
+btn2_w       dd 0
+btn2_h       dd 0
+btn2_x       dd 0
+btn2_y       dd 0
+btn_exit_box dd 0, 0, 0, 0
 
 text_scale dd 3
 
@@ -200,10 +204,11 @@ popup_btn_str db "Rewanż!", 0
 
 ; GUI
 
-ACTION_STATE_DEFAULT equ 0
-ACTION_STATE_SURRENDER equ 1 ; there is no "incoming surrendder", as it doesn't requires the opponent's consent
-ACTION_STATE_DRAW equ 2
-ACTION_STATE_INCOMING_DRAW equ 3
+ACTION_STATE_DEFAULT        equ 0
+ACTION_STATE_SURRENDER      equ 1 ; there is no "incoming surrendder", as it doesn't requires the opponent's consent
+ACTION_STATE_DRAW           equ 2
+ACTION_STATE_INCOMING_DRAW  equ 3
+ACTION_STATE_EXIT           equ 4 ; offline only
 
 ui_action_state dd 0      
 ui_manual_scroll dd -1    ; -1 = Auto-scroll, >=0 = Manual offset
@@ -215,12 +220,13 @@ btn_draw_box     dd 0, 0, 0, 0
 btn_giveup_box   dd 0, 0, 0, 0
 
 ; gui bmp ptrs
-bmp_btn_back  dq 0       ; "<"
-bmp_btn_forward   dq 0       ; ">"
-bmp_btn_draw  dq 0       ; "1/2"
-bmp_btn_giveup  dq 0       ; "flag"
-bmp_btn_ok dq 0       ; "checkmark"
-bmp_btn_no dq 0       ; "X"
+bmp_btn_back        dq 0  ; "<"
+bmp_btn_forward     dq 0  ; ">"
+bmp_btn_draw        dq 0  ; "1/2"
+bmp_btn_giveup      dq 0  ; "flag"
+bmp_btn_ok          dq 0  ; "checkmark"
+bmp_btn_no          dq 0  ; "X"
+bmp_btn_exit        dq 0  ; "door"
 
 ; chess960
 chess960_mode   db 0

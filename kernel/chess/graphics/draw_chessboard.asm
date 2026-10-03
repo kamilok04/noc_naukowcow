@@ -635,10 +635,17 @@ calculate_transcript_layout:
     sub ecx, ebx
     mov dword [rel btn_giveup_box + 4], ecx    ; surrender
 
+    ; exit btn
+    mov dword [rel btn_exit_box + 4], ecx    ; draw button position
+                                             ; connection mode will decide what to render
+    mov dword [rel btn_exit_box], r8d        ; X is identical
+    mov dword [rel btn_exit_box + 8], ebx    ; W
+    mov dword [rel btn_exit_box + 12], ebx   ; H
+
     sub ecx, ebx
     sub ecx, 8                               ; 8px gap
     mov dword [rel btn_draw_box + 4], ecx    ; draw
-
+ 
     pop rdx
     pop rcx
     pop rbx
@@ -804,8 +811,31 @@ _draw_ui_buttons:
     ; state-dependent controls
     ; disable if offline
     cmp byte [rel net_role], NET_ROLE_OFFLINE
-    je .finished
+    jne .draw_online_buttons
+
+    ; offline only: exit btn
+    lea r12, [rel btn_exit_box]
+    cmp r13d, ACTION_STATE_EXIT ; pending confirm?
+    je .exit_confirm_state
+
+    mov r14, qword [rel bmp_btn_exit] 
+    mov r10d, COLOR_NO  
+    call .draw_icon
+    jmp .finished
+
+.exit_confirm_state:
+    ; draw OK
+    mov r14, qword [rel bmp_btn_ok]
+    mov r10d, COLOR_OK      
+    call .draw_icon
+
+    lea r12, [rel btn_draw_box]
+    mov r14, qword [rel bmp_btn_no]
+    mov r10d, COLOR_NO           
+    call .draw_icon
+    jmp .finished
     
+.draw_online_buttons:
     ; draw-accept-cancel btns
     lea r12, [rel btn_draw_box]
     cmp r13d, ACTION_STATE_SURRENDER
@@ -817,17 +847,17 @@ _draw_ui_buttons:
     
     ; default state
     mov r14, qword [rel bmp_btn_draw]
-    mov r10d, 0x003333AA           ; blue
+    mov r10d, COLOR_INFO
     jmp .render_draw_btn
 
 .draw_cancel_state:
     mov r14, qword [rel bmp_btn_no]
-    mov r10d, 0x00AA3333           ; red
+    mov r10d, COLOR_NO
     jmp .render_draw_btn
 
 .draw_confirm_state:
     mov r14, qword [rel bmp_btn_ok]
-    mov r10d, 0x0033AA33           ; green
+    mov r10d, COLOR_OK
 
 .render_draw_btn:
     call .draw_icon
@@ -844,17 +874,17 @@ _draw_ui_buttons:
     
     ; default
     mov r14, qword [rel bmp_btn_giveup]
-    mov r10d, 0x00AA3333           ; r
+    mov r10d, COLOR_NO
     jmp .render_giveup_btn
 
 .giveup_confirm_state:
     mov r14, qword [rel bmp_btn_ok]
-    mov r10d, 0x0033AA33           ; g
+    mov r10d, COLOR_OK
     jmp .render_giveup_btn
 
 .giveup_cancel_state:
     mov r14, qword [rel bmp_btn_no]
-    mov r10d, 0x00AA3333           ; r
+    mov r10d, COLOR_NO
 
 .render_giveup_btn:
     call .draw_icon

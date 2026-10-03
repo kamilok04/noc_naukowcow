@@ -874,8 +874,56 @@ handle_ui_click:
 
     ; and when offline
     cmp byte [rel net_role], NET_ROLE_OFFLINE
-    je .done
+    jne .check_online_buttons
 
+    ; offline; check for exit btn/exit ack instead
+    lea r8, [rel btn_exit_box]
+    call .check_collision
+    test rax, rax
+    jnz .clicked_exit
+
+    ; cancelled exit?
+    lea r8, [rel btn_draw_box]
+    call .check_collision
+    test rax, rax
+    jnz .clicked_cancel_offline
+
+    jmp .none_clicked
+
+.clicked_exit:
+    mov ebx, dword [rel ui_action_state]
+    cmp ebx, ACTION_STATE_DEFAULT
+    je .init_exit
+    cmp ebx, ACTION_STATE_EXIT
+    je .confirm_exit
+    jmp .handled
+
+.init_exit:
+    ; init exit, display yay/nay btns
+    mov dword [rel ui_action_state], ACTION_STATE_EXIT
+    jmp .handled
+
+.confirm_exit:
+    ; exit ack, drop the game and run
+    mov dword [rel ui_action_state], ACTION_STATE_DEFAULT
+    call network_teardown      
+    call reset_game
+    mov byte [rel in_menu], MENU_STATE_MAIN
+    jmp .handled
+
+.clicked_cancel_offline:
+    ; exit nack, only when pending
+    mov ebx, dword [rel ui_action_state]
+    cmp ebx, ACTION_STATE_EXIT
+    je .cancel_exit
+    jmp .handled
+
+.cancel_exit:
+    ; the default
+    mov dword [rel ui_action_state], ACTION_STATE_DEFAULT
+    jmp .handled
+
+.check_online_buttons:
     ; 1/2
     lea r8, [rel btn_draw_box]
     call .check_collision
@@ -1008,6 +1056,10 @@ handle_ui_click:
 .cancel_action:
     mov dword [rel ui_action_state], ACTION_STATE_DEFAULT
     jmp .handled
+
+.none_clicked:
+    xor rax, rax
+    jmp .done
 
 .handled:
     mov rax, 1

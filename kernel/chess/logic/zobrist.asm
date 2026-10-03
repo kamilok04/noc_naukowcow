@@ -7,10 +7,10 @@ init_zobrist:
     push rcx
     mov rax, 0x123456789ABCDEF0      ; initial seed
     
-    ; board and piece combos (13 * 64 = 832)
+    ; board and piece combos (13 * 64 * 2 = 1664)
     ; "this piece on that square" will get its own unique
     lea rbx, [rel zobrist_pieces]
-    mov rcx, 832
+    mov rcx, 1664
 .fill_pieces:
     call .xorshift
     mov [rbx], rax
@@ -83,20 +83,10 @@ compute_zobrist:
     test rdx, rdx
     jz .next_sq
     
-    ; network state has 128 fields
-    ; hashing has 64
-    ; convert
-    mov r8, rcx
-    mov r9, rcx
-    and r8, 7                        ; R8 = column
-    shr r9, 4                        ; R9 = row (0-7)
-    shl r9, 3                        ; R9 = 8*row
-    add r8, r9                       ; R8 = square index
-    
-    
-    mov r9, rdx                      ; R9 = ID 
-    shl r9, 6                        ; R9 = ID * 64 "move id to square"
-    add r8, r9                       ; R8 = compressed index
+    mov r8, rcx                      ; R8 = direct 0x88 square index (0 to 0x77)
+    mov r9, rdx                      ; R9 = piece ID 
+    shl r9, 7                        ; R9 = id * 128 
+    add r8, r9                       ; R8 = piece_type * 128 + square_index
     
     ; update the state
     lea rbx, [rel zobrist_pieces]
@@ -105,7 +95,7 @@ compute_zobrist:
 
 .next_sq:
     inc rcx
-    cmp rcx, 64
+    cmp rcx, 0x78
     jl .piece_loop
     
     ; color matters for repetition

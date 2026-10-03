@@ -195,3 +195,5 @@
     recycled_tx_buf dq 0             ; TX buffers need to be actively cleared, otherwise they get full and don't TX anymore
     interrupt_status dd 0
     needs_ack db 0
+    ; sync SNP
+    ack_pending db 0

@@ -8,10 +8,9 @@ sysroot/**
 # an artifact pipeline for creating 
 # a flat binary x86_64 UEFI executable
 # not a single one of those words are in the Bible btw
-assets/**
+# assets/**
 
 # This deserves a separate few minutes in the spotlight
 rant.txt
 
-# this will be separate
-*.sh
+doc2.typ

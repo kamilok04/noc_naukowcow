@@ -10,10 +10,10 @@
   aspect-ratio: "16-9",
   footer: self => self.info.title,
   config-info(
-      title: [Działający program bez systemu operacyjnego?],
-      subtitle: [Programowanie UEFI w praktyce],
-      author: [Kamil Bublij]
-    )
+    title: [Działający program bez systemu operacyjnego?],
+    subtitle: [Programowanie UEFI w praktyce],
+    author: [Kamil Bublij],
+  ),
 )
 
 #title-slide()
@@ -57,19 +57,19 @@
   fen,
   annotations,
   size: 6.8cm, // Zmniejszony rozmiar bazowy (dopasowany do tekstu 25pt)
-  ..args
+  ..args,
 ) = {
   let square-size = size / 8
-  
+
   align(center + horizon)[
     #scale(x: 175%, y: 175%, reflow: true)[
       #box(width: size, height: size)[
         #place(center + horizon, board(fen, ..args))
-        
+
         #for (square, mark) in annotations {
           let file = square.at(0)
           let rank = int(square.at(1))
-          
+
           let file-index = ("a", "b", "c", "d", "e", "f", "g", "h").position(x => x == file)
           let rank-index = rank - 1
 
@@ -86,8 +86,8 @@
               align(center + horizon)[
                 #set text(weight: "bold", size: 14pt)
                 #mark
-              ]
-            )
+              ],
+            ),
           )
         }
       ]
@@ -384,58 +384,64 @@ Przykłady:
 
 NASM wspiera składnię "pudełkową" -- działania na wskaźnikach \ są oznaczone \[kwadratowymi nawiasami\].
 
-#figure(```asm
-mov rax, [pudełko]
-```, caption: [RAX dostanie to, co jest w pudełku.])
+#figure(
+  ```asm
+  mov rax, [pudełko]
+  ```,
+  caption: [RAX dostanie to, co jest w pudełku.],
+)
 
 ---
 
 #columns(2)[
   #v(1in)
-=== Parę słów o stosie
+  === Parę słów o stosie
   #v(1cm)
-Stos to nic innego jak _stos_ pudełek w pewnym obszarze pamięci. 
+  Stos to nic innego jak _stos_ pudełek w pewnym obszarze pamięci.
 
   #uncover("2-")[
     #figure(
-    ```asm
-    push 20
-    ```,
-    caption: [Wrzucanie wartości na stos]
+      ```asm
+      push 20
+      ```,
+      caption: [Wrzucanie wartości na stos],
     )
   ]
   #colbreak()
   #only("1")[#figure(image("img/part_stack.png"), caption: [Stos (nie do skali)])]
   #only("2")[#figure(image("img/stack_inserted.png"), caption: [Stos (nie do skali)])]
-  
+
 ]
 
 ---
 #columns(2)[
-#v(1in)
-=== Skąd komputer wie, gdzie trzyma pudełka?
-#v(1cm)
-Istnieją specjalne rejestry odpowiedzialne za stos: ```asm RSP``` oraz ```asm RBP```.
+  #v(1in)
+  === Skąd komputer wie, gdzie trzyma pudełka?
+  #v(1cm)
+  Istnieją specjalne rejestry odpowiedzialne za stos: ```asm RSP``` oraz ```asm RBP```.
 
-#box[
-  #set text(size: 16pt)
-  Istnieje też ```asm SS```, ale w trybie chronionym i wyżej zwykle ma zawsze wartość `0`.
-]
+  #box[
+    #set text(size: 16pt)
+    Istnieje też ```asm SS```, ale w trybie chronionym i wyżej zwykle ma zawsze wartość `0`.
+  ]
 
 
-#colbreak()
+  #colbreak()
 
-#figure(image("img/stack_registers.png", width: 50%), caption: [Rejestry stosu])
+  #figure(image("img/stack_registers.png", width: 50%), caption: [Rejestry stosu])
 ]
 ---
 #columns(2)[
-#v(1in)
-=== Grawitacja stosu
-#v(1cm)
-W architekturze x86 stos zwykle rośnie _w dół_. 
+  #v(1in)
+  === Grawitacja stosu
+  #v(1cm)
+  W architekturze x86 stos zwykle rośnie _w dół_.
 
-Nie zmienia to zasady działania, ale warto mieć to na uwadze.
-#figure(rotate(180deg)[#image("img/stack_flip.psd.png", width: 47.5%)], caption: [Stos bliższy rzeczywistości (nadal nie do skali)])
+  Nie zmienia to zasady działania, ale warto mieć to na uwadze.
+  #figure(
+    rotate(180deg)[#image("img/stack_flip.psd.png", width: 47.5%)],
+    caption: [Stos bliższy rzeczywistości (nadal nie do skali)],
+  )
 
 ]
 
@@ -447,9 +453,9 @@ Powszechne narzędzie -- alternatywa dla `Makefile`.
 
 Po co CMake, skoro program nie potrzebuje ani kompilatora, ani konsolidatora?
 
---- 
+---
 
-=== Role CMake w kodzie 
+=== Role CMake w kodzie
 + zapewnienie warunków
 + wywołanie asemblera
 + synchronizacja plików (np. grafiki)
@@ -458,7 +464,7 @@ Po co CMake, skoro program nie potrzebuje ani kompilatora, ani konsolidatora?
 Powstaje plik `.iso` do wypalenia na płycie oraz folder `sysroot`.
 ---
 
-= UEFI od spodu: konwencje i protokoły
+=== UEFI od spodu: konwencje i protokoły
 
 ---
 
@@ -477,11 +483,11 @@ Niedostosowanie się do konwencji skutkuje po prostu zawieszeniem się komputera
 #v(1.5cm)
 === Jak wywołać funkcję UEFI i nie zepsuć komputera
 #v(1cm)
-  + *Rejestry:* Pierwsze cztery argumenty są kolejno w ```asm rcx, rdx, r8, r9```. Więcej argumentów ląduje na stosie.
++ *Rejestry:* Pierwsze cztery argumenty są kolejno w ```asm rcx, rdx, r8, r9```. Więcej argumentów ląduje na stosie.
 
-  + *Shadow Space:* Przy każdym wywołaniu trzeba zostawić układowi przynajmniej 32B miejsca.
++ *Shadow Space:* Przy każdym wywołaniu trzeba zostawić układowi przynajmniej 32B miejsca.
 
-  + *Wyrównanie:* Przy wywołaniu stos musi być wyrównany do 16B.
++ *Wyrównanie:* Przy wywołaniu stos musi być wyrównany do 16B.
 
 ---
 
@@ -490,41 +496,43 @@ Niedostosowanie się do konwencji skutkuje po prostu zawieszeniem się komputera
 
 
 
-  ```asm
-  sub rsp, 40       ; 32B shadow + 8B wyrównania
-  mov rcx, [handle] ; 1. Argument
-  mov rdx, 0x05     ; 2. Argument
-  xor r8, r8        ; 3. Argument
-  xor r9, r9        ; 4. Argument
-  mov rax, [funkcja]
-  call rax          ; Skok do UEFI
+```asm
+sub rsp, 40       ; 32B shadow + 8B wyrównania
+mov rcx, [handle] ; 1. Argument
+mov rdx, 0x05     ; 2. Argument
+xor r8, r8        ; 3. Argument
+xor r9, r9        ; 4. Argument
+mov rax, [funkcja]
+call rax          ; Skok do UEFI
 
-  add rsp, 40       ; Sprzątanie
-  ```
+add rsp, 40       ; Sprzątanie
+```
 
 
 ---
 
 #columns(2)[
   #v(1in)
-=== Protokoły i GUID
-#v(0.3in)
-Mimo tego, że UEFI jest implementowane w C, jest modularne.
+  === Protokoły i GUID
+  #v(0.3in)
+  Mimo tego, że UEFI jest implementowane w C, jest modularne.
 
-Pojedyncze funkcjonalności nazywamy *protokołami*.
+  Pojedyncze funkcjonalności nazywamy *protokołami*.
 
-#colbreak()
-#v(1cm)
-#figure(```asm
-struc EFI_BLOCK_IO_PROTOCOL
-    .Revision    resq 1  ; +0
-    .Media       resq 1  ; +8: Ptr to EFI_BLOCK_IO_MEDIA
-    .Reset       resq 1  ; +16
-    .ReadBlocks  resq 1  ; +24:
-    .WriteBlocks resq 1  ; +32
-    .FlushBlocks resq 1  ; +40
-endstruc```,
-caption:[Przykładowy protokół UEFI])
+  #colbreak()
+  #v(1cm)
+  #figure(
+    ```asm
+    struc EFI_BLOCK_IO_PROTOCOL
+        .Revision    resq 1  ; +0
+        .Media       resq 1  ; +8: Ptr to EFI_BLOCK_IO_MEDIA
+        .Reset       resq 1  ; +16
+        .ReadBlocks  resq 1  ; +24:
+        .WriteBlocks resq 1  ; +32
+        .FlushBlocks resq 1  ; +40
+    endstruc```,
+    caption: [Przykładowy protokół UEFI],
+  )
 
 ]
 
@@ -532,14 +540,14 @@ caption:[Przykładowy protokół UEFI])
 #place(top + left, dx: 55%, dy: 20%)[ === Gdzie jest protokół?]
 #v(0.8in)
 
-  Do ustalenia tego służy *GUID* -- 128-bitowa liczba, która jest inna dla każdego protokołu.
-    ```asm
-        GUID_BLOCK_IO:
-        dd 0x964e5b21
-        dw 0x6459, 0x11d2
-        db 0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b
-    ```
-  Bardziej popularny zapis: *{964E5B21-6459-11D2-8E39-00A0C969723B}*.
+Do ustalenia tego służy *GUID* -- 128-bitowa liczba, która jest inna dla każdego protokołu.
+```asm
+    GUID_BLOCK_IO:
+    dd 0x964e5b21
+    dw 0x6459, 0x11d2
+    db 0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b
+```
+Bardziej popularny zapis: *{964E5B21-6459-11D2-8E39-00A0C969723B}*.
 
 
 
@@ -584,32 +592,32 @@ Zanim uruchomi się jakikolwiek OS, płyta główna przechodzi przez złożony p
 
 ---
 
-  Program działa na etapie *TSL* (_Transient System Load_). To moment, \ w którym firmware załadował już wszystkie sterowniki sprzętowe (pamięć, grafikę, sieć w fazie DXE) i pozwala z nich korzystać, dopóki OS nie zostanie uruchomiony.
+Program działa na etapie *TSL* (_Transient System Load_). To moment, \ w którym firmware załadował już wszystkie sterowniki sprzętowe (pamięć, grafikę, sieć w fazie DXE) i pozwala z nich korzystać, dopóki OS nie zostanie uruchomiony.
 
 
 ---
 
 #columns(2)[
-#v(1in)
-=== System Table
-Skąd program wie, jak wyświetlić obraz albo zaalokować pamięć?
+  #v(1in)
+  === System Table
+  Skąd program wie, jak wyświetlić obraz albo zaalokować pamięć?
 
-Firmware przekazuje wskaźnik do *System Table* -- tablicę wskaźników do funkcji.
+  Firmware przekazuje wskaźnik do *System Table* -- tablicę wskaźników do funkcji.
 
-#colbreak()
-#figure(
-  image("img/phonebook1936-4d41a0.jpg", width: 40%),
-  caption: [`System Table`, mniej więcej]
-)
+  #colbreak()
+  #figure(
+    image("img/phonebook1936-4d41a0.jpg", width: 40%),
+    caption: [`System Table`, mniej więcej],
+  )
 ]
 ---
 === Co jest w System Table?
 
 #v(0.2in)
 
-  Sporo, ale dwie rzeczy są najważniejsze:
-  - *Boot Services (BS):* Wszystko, czego będziemy używać (grafika, sieć, wejście myszy/klawiatury, ...)
-  - *Runtime Services (RT):* Kilka funkcji dostępnych cały czas
+Sporo, ale dwie rzeczy są najważniejsze:
+- *Boot Services (BS):* Wszystko, czego będziemy używać (grafika, sieć, wejście myszy/klawiatury, ...)
+- *Runtime Services (RT):* Kilka funkcji dostępnych cały czas
 
 ---
 
@@ -651,7 +659,7 @@ Jak porozumieć się ze zdalnym komputerem bez systemu operacyjnego, wątków cz
 ---
 
 #columns(2)[
-#v(1in)
+  #v(1in)
   === Zejście do łącza danych
   #v(0.5in)
 
@@ -662,13 +670,13 @@ Jak porozumieć się ze zdalnym komputerem bez systemu operacyjnego, wątków cz
   #colbreak()
   #figure(
     image("img/osi-model-pl.png", width: 70%),
-    caption: [Model ISO/OSI a nasz system]
+    caption: [Model ISO/OSI a nasz system],
   )
 ]
 
 ---
-  === Polling
-  Bez pojęcia wątków nie ma pojęcia przerwań -- karta sieciowa \ nie "zawoła" procesora, gdy nadejdą dane. Ręcznie pytamy _masz coś dla mnie?_
+=== Polling
+Bez pojęcia wątków nie ma pojęcia przerwań -- karta sieciowa \ nie "zawoła" procesora, gdy nadejdą dane. Ręcznie pytamy _masz coś dla mnie?_
 
 
 ---
@@ -700,42 +708,42 @@ Zaledwie *3 bajty danych* wystarczą, aby w pełni i bezstratnie zsynchronizowa�
 ]
 
 
-#box(fill: white, width:200%, height:200%)[
-#v(0.5in)
-#align(center)[
-  #diagram(
-    node-stroke: 1.5pt,
-    edge-stroke: 1.5pt,
-    node-corner-radius: 5pt,
-    spacing: (-0.75cm, 0.6cm),
-    mark-scale: 100%,
+#box(fill: white, width: 200%, height: 200%)[
+  #v(0.5in)
+  #align(center)[
+    #diagram(
+      node-stroke: 1.5pt,
+      edge-stroke: 1.5pt,
+      node-corner-radius: 5pt,
+      spacing: (-0.75cm, 0.6cm),
+      mark-scale: 100%,
 
-    // Standard OS Stack
-    node((0, 0), [*Tradycyjny system*]),
-    node((0, 1), [Aplikacja], fill: rgb("eeeeee")),
-    node((0, 2), [Socket], fill: rgb("ffffff")),
-    node((0, 3), [TCP / UDP], fill: rgb("ffffff")),
-    node((0, 4), [IPv4 / IPv6], fill: rgb("ffffff")),
-    node((0, 5), [Sterownik sieciowy], fill: rgb("ffffff")),
+      // Standard OS Stack
+      node((0, 0), [*Tradycyjny system*]),
+      node((0, 1), [Aplikacja], fill: rgb("eeeeee")),
+      node((0, 2), [Socket], fill: rgb("ffffff")),
+      node((0, 3), [TCP / UDP], fill: rgb("ffffff")),
+      node((0, 4), [IPv4 / IPv6], fill: rgb("ffffff")),
+      node((0, 5), [Sterownik sieciowy], fill: rgb("ffffff")),
 
-    edge((0, 1), (0, 2), "-|>"),
-    edge((0, 2), (0, 3), "-|>"),
-    edge((0, 3), (0, 4), "-|>"),
-    edge((0, 4), (0, 5), "-|>"),
+      edge((0, 1), (0, 2), "-|>"),
+      edge((0, 2), (0, 3), "-|>"),
+      edge((0, 3), (0, 4), "-|>"),
+      edge((0, 4), (0, 5), "-|>"),
 
-    // Bare metal UEFI Stack
-    node((3, 0), [*Projekt UEFI*]),
-    node((3, 1), [System], fill: rgb("DAF2F5")),
-    node((3, 3.5), [SNP], fill: rgb("DAF2F5")),
+      // Bare metal UEFI Stack
+      node((3, 0), [*Projekt UEFI*]),
+      node((3, 1), [System], fill: rgb("DAF2F5")),
+      node((3, 3.5), [SNP], fill: rgb("DAF2F5")),
 
-    edge((3, 1), (3, 3.5), "-|>", label: [ 3 bajty ], label-pos: 0.5, label-side: left),
+      edge((3, 1), (3, 3.5), "-|>", label: [ 3 bajty ], label-pos: 0.5, label-side: left),
 
-    // Hardware Layer (Shared visually)
-    node((1.5, 6.5), [Fizyczny adapter sieciowy], fill: rgb("ffe6cc"), width: 8cm),
-    edge((0, 5), (0, 6.5), (1.5, 6.5), "-|>"),
-    edge((3, 3.5), (3, 6.5), (1.5, 6.5), "-|>"),
-  )
-]
+      // Hardware Layer (Shared visually)
+      node((1.5, 6.5), [Fizyczny adapter sieciowy], fill: rgb("ffe6cc"), width: 8cm),
+      edge((0, 5), (0, 6.5), (1.5, 6.5), "-|>"),
+      edge((3, 3.5), (3, 6.5), (1.5, 6.5), "-|>"),
+    )
+  ]
 ]
 
 ---
@@ -809,7 +817,7 @@ Jest kilka pomysłów, każdy jest inny.
       let rank = 8 - int(i / 8) // Odwrócenie osi pionowej planszy
       acc.insert(file + str(rank), str(i))
       acc
-    })
+    }),
   )
 ]
 ---
@@ -823,20 +831,25 @@ Jest kilka pomysłów, każdy jest inny.
       let rank = 8 - int(i / 8)
       acc.insert(file + str(rank), str(i))
       acc
-    })
+    }),
   )
-  
+
   #colbreak()
 
   // Adnotacje konkretnych offsetów 10x12 wokół króla
   #annotate-board(
     "8/8/8/8/3K4/8/8/8 w - - 0 1",
     (
-      "c5": "-9", "d5": "-8", "e5": "-7", 
-      "c4": "-1",             "e4": "+1", 
-      "c3": "+7", "d3": "+8", "e3": "+9"
+      "c5": "-9",
+      "d5": "-8",
+      "e5": "-7",
+      "c4": "-1",
+      "e4": "+1",
+      "c3": "+7",
+      "d3": "+8",
+      "e3": "+9",
     ),
-    highlight: ("e3", "e4", "e5", "d3", "d5", "c3", "c4", "c5")
+    highlight: ("e3", "e4", "e5", "d3", "d5", "c3", "c4", "c5"),
   )
 ]
 ---
@@ -852,9 +865,9 @@ Jest kilka pomysłów, każdy jest inny.
 
   #colbreak()
   #colboard(
-      "8/8/8/8/7K/8/8/8 w - - 0 1",
-      highlight: ("g3", "g4", "g5", "h3", "h5", "a3", "a4", "a5"),
-    )
+    "8/8/8/8/7K/8/8/8 w - - 0 1",
+    highlight: ("g3", "g4", "g5", "h3", "h5", "a3", "a4", "a5"),
+  )
 ]
 
 ---
@@ -897,11 +910,11 @@ Na przykład: pole #text(blue)[f]#text(red)[5] (poprzednio 29) otrzymuje wartoś
         acc.insert(file + str(rank), hex(i))
       }
       acc
-    })
+    }),
   )
 ]
 
---- 
+---
 
 #v(-1cm)
 #columns(2)[
@@ -914,24 +927,29 @@ Na przykład: pole #text(blue)[f]#text(red)[5] (poprzednio 29) otrzymuje wartoś
         acc.insert(file + str(rank), hex(i))
       }
       acc
-    })
+    }),
   )
-  
+
   #colbreak()
 
   // Adnotacje offsetów w systemie 0x88
   #annotate-board(
     "8/8/8/8/3K4/8/8/8 w - - 0 1",
     (
-      "c5": "-11", "d5": "-10", "e5": "-F", 
-      "c4": "-1",               "e4": "+1", 
-      "c3": "+F",  "d3": "+10", "e3": "+11"
+      "c5": "-11",
+      "d5": "-10",
+      "e5": "-F",
+      "c4": "-1",
+      "e4": "+1",
+      "c3": "+F",
+      "d3": "+10",
+      "e3": "+11",
     ),
-    highlight: ("e3", "e4", "e5", "d3", "d5", "c3", "c4", "c5")
+    highlight: ("e3", "e4", "e5", "d3", "d5", "c3", "c4", "c5"),
   )
 ]
 
---- 
+---
 
 
 #columns(2)[
@@ -947,10 +965,10 @@ Na przykład: pole #text(blue)[f]#text(red)[5] (poprzednio 29) otrzymuje wartoś
 
   #colbreak()
   #colboard(
-      "8/8/8/8/7K/8/8/8 w - - 0 1",
-      highlight: ("g3", "g4", "g5", "h3", "h5"),
-    )
-  
+    "8/8/8/8/7K/8/8/8 w - - 0 1",
+    highlight: ("g3", "g4", "g5", "h3", "h5"),
+  )
+
 ]
 ---
 
@@ -967,36 +985,38 @@ Najwyższy dopuszczalny numer wiersza i kolumny to 7.
 
 #columns(2)[
   #align(right)[
-  #text(blue, size: 36pt)[`0111`]#text(red, size: 36pt)[`0111`]\ 
-  `AND` #text(blue, size: 36pt)[`1000`]#text(red, size: 36pt)[`1000`]
-  #v(-1em)
-  #line(length:50%)
-  #v(-1em)
-  #text(blue, size: 36pt)[`0000`]#text(red, size: 36pt)[`0000`]\
+    #text(blue, size: 36pt)[`0111`]#text(red, size: 36pt)[`0111`]\
+    `AND` #text(blue, size: 36pt)[`1000`]#text(red, size: 36pt)[`1000`]
+    #v(-1em)
+    #line(length: 50%)
+    #v(-1em)
+    #text(blue, size: 36pt)[`0000`]#text(red, size: 36pt)[`0000`]\
   ]
   #colbreak()
   #align(left)[
-  #text(blue, size: 36pt)[`1001`]#text(red, size: 36pt)[`0111`]\ 
-  #text(blue, size: 36pt)[`1000`]#text(red, size: 36pt)[`1000`] `AND`
-  #v(-1em)
-  #line(length:50%)
-  #v(-1em)
-  #text(blue, size: 36pt)[`1000`]#text(red, size: 36pt)[`0000`]\
+    #text(blue, size: 36pt)[`1001`]#text(red, size: 36pt)[`0111`]\
+    #text(blue, size: 36pt)[`1000`]#text(red, size: 36pt)[`1000`] `AND`
+    #v(-1em)
+    #line(length: 50%)
+    #v(-1em)
+    #text(blue, size: 36pt)[`1000`]#text(red, size: 36pt)[`0000`]\
 
   ]
 ]
 
 ---
 #columns(2)[
-#v(1in)
-=== Co z pozostałym miejscem?
-Nie marnuje się :)
+  #v(1in)
+  === Co z pozostałym miejscem?
+  Nie marnuje się :)
 
-Niepoprawne pola, po walidacji, są stosowane jako *komendy silnika*.
+  Niepoprawne pola, po walidacji, są stosowane jako *komendy silnika*.
 
-#colbreak()
+  #colbreak()
 
-#table(columns: (5em, 5em), rows: (5em, 5em), align: horizon + center, gutter: 0mm, fill: (x, y) => {if x == 0 and y == 0 {green} else {red}})[#rotate(30deg)[Poprawne pola]][][][#rotate(-30deg)[Przestrzeń poleceń]]
+  #table(columns: (5em, 5em), rows: (5em, 5em), align: horizon + center, gutter: 0mm, fill: (x, y) => {
+      if x == 0 and y == 0 { green } else { red }
+    })[#rotate(30deg)[Poprawne pola]][][][#rotate(-30deg)[Przestrzeń poleceń]]
 
 ]
 
@@ -1004,7 +1024,7 @@ Niepoprawne pola, po walidacji, są stosowane jako *komendy silnika*.
 === Niepoprawne ruchy jako komendy
 
 
-Takie podejście pozwala przekazać _wszystkie_ aspekty gry \ w bezpieczny sposób w zaledwie trzech bajtach. 
+Takie podejście pozwala przekazać _wszystkie_ aspekty gry \ w bezpieczny sposób w zaledwie trzech bajtach.
 
 
 ---
@@ -1013,11 +1033,11 @@ Takie podejście pozwala przekazać _wszystkie_ aspekty gry \ w bezpieczny spos�
 
 #figure(
   ```asm
-.check_draw:
-    cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xCC
-    je .remote_offer_draw
-    ```, 
-    caption: [Dowolny ruch z pola `0xCC` (L-3) oznacza, że przeciwnik prosi o remis.]
+  .check_draw:
+      cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xCC
+      je .remote_offer_draw
+  ```,
+  caption: [Dowolny ruch z pola `0xCC` (L-3) oznacza, że przeciwnik prosi o remis.],
 )
 
 ---
@@ -1026,12 +1046,12 @@ Takie podejście pozwala przekazać _wszystkie_ aspekty gry \ w bezpieczny spos�
 
 #figure(
   ```asm
-.check_hello:
-    cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xEE
-    jne .check_reset
+  .check_hello:
+      cmp byte [rel rx_data + MOVE_PAYLOAD.Origin], 0xEE
+      jne .check_reset
 
-    ```, 
-    caption: [Dowolny ruch z pola `0xEE` (N-5) oznacza, że przeciwnik dołączył i chce rozpocząć grę.]
+  ```,
+  caption: [Dowolny ruch z pola `0xEE` (N-5) oznacza, że przeciwnik dołączył i chce rozpocząć grę.],
 )
 
 ---
@@ -1061,35 +1081,35 @@ Dowolny błąd logiczny (niewykryty szach, nadmiarowe bicie \ w przelocie) *naty
 
 ---
 #columns(2)[
-#v(0.5in)
-=== Tabela wyników Perft dla standardowej pozycji
+  #v(0.5in)
+  === Tabela wyników Perft dla standardowej pozycji
 
-Liczba dopuszczalnych ruchów rośnie wykładniczo.
+  Liczba dopuszczalnych ruchów rośnie wykładniczo.
 
 
-#colbreak()
-#align(center)[
-  #table(
-    columns: (auto, auto),
-    align: center + horizon,
-    fill: (c, r) => if r == 0 { rgb("DAF2F5") } else { none },
-    stroke: none,
-    row-gutter: 0.8em,
-    [*Głębokość*], [*Liczba ruchów*],
-    [1], [20], 
-    [2], [400],
-    [5], [4 865 609],
-    [6], [119 060 324], 
-    [7], [3 195 901 860]
-  )
-]
+  #colbreak()
+  #align(center)[
+    #table(
+      columns: (auto, auto),
+      align: center + horizon,
+      fill: (c, r) => if r == 0 { rgb("DAF2F5") } else { none },
+      stroke: none,
+      row-gutter: 0.8em,
+      [*Głębokość*], [*Liczba ruchów*],
+      [1], [20],
+      [2], [400],
+      [5], [4 865 609],
+      [6], [119 060 324],
+      [7], [3 195 901 860],
+    )
+  ]
 ]
 
 ---
 
 #columns(2)[
-#v(1in)
-=== Męczenie silnika: Kiwipete
+  #v(1in)
+  === Męczenie silnika: Kiwipete
   Dla standardowej pozycji pierwsze kilka ruchów to strata czasu.
 
 
@@ -1107,12 +1127,12 @@ Liczba dopuszczalnych ruchów rośnie wykładniczo.
 
 === Dlaczego to trudna pozycja?
 #v(0.5in)
- Zaledwie po kilku ruchach pojawiają się problemy typu:
-  - szach z odkrycia,
-  - przypięcie,
-  - roszada w obie strony (+ czasowa i trwała strata prawa),
-  - bicie w przelocie,
-  - promocje.
+Zaledwie po kilku ruchach pojawiają się problemy typu:
+- szach z odkrycia,
+- przypięcie,
+- roszada w obie strony (+ czasowa i trwała strata prawa),
+- bicie w przelocie,
+- promocje.
 
 
 ---
@@ -1131,7 +1151,7 @@ Liczba dopuszczalnych ruchów rośnie wykładniczo.
     [2], [2039],
     [5], [193 690 690],
     [6], [8 031 647 685],
-    [7], [374 190 009 323]
+    [7], [374 190 009 323],
   )
 ]
 
@@ -1193,7 +1213,7 @@ szachów, dodatkowo:
 ]
 ---
 #columns(2)[
-=== Start
+  === Start
   #biggrey[518]
 
   ```asm
@@ -1215,7 +1235,7 @@ szachów, dodatkowo:
 // TODO: wyjaśnić DIV
 #columns(2)[
 
-=== Wyznaczamy pozycję gońca
+  === Wyznaczamy pozycję gońca
   #biggrey[518 / 4 = 129] #text(size: 24pt, gray, weight: 700)[r. 2]
 
   ```asm
@@ -1244,7 +1264,7 @@ szachów, dodatkowo:
 
 #columns(2)[
   #v(0.9in)
-=== Wyznaczamy pozycję gońca cd.
+  === Wyznaczamy pozycję gońca cd.
 
   #biggrey[2 \* 2 + 1 = #text(orange)[5]]
   ```asm
@@ -1276,7 +1296,7 @@ szachów, dodatkowo:
 
 ---
 #columns(2)[
-  #v(1in)  
+  #v(1in)
   === Kładzenie jasnopolowego gońca
 
   Wynik #text(orange)[*5*] to numer kolumny \
@@ -1331,8 +1351,8 @@ szachów, dodatkowo:
 ]
 ---
 #columns(2)[
-#v(1cm)
-=== Wyznaczamy pozycję hetmana
+  #v(1cm)
+  === Wyznaczamy pozycję hetmana
   #biggrey[32 / 6 = 5] #text(size: 24pt, gray, weight: 700)[r. #text(orange)[2]]
   ```asm
   mov rcx, 6
@@ -1371,7 +1391,7 @@ szachów, dodatkowo:
   call .znajdz_nte_puste
   ```
   #colbreak()
-=== Wybieranie wolnego pola
+  === Wybieranie wolnego pola
   #set table(
     stroke: none,
 
@@ -1386,48 +1406,48 @@ szachów, dodatkowo:
     ```asm rbx```, [`2`],
     ```asm rcx```, [#s[`4`] *`6`*],
     ```asm rdx```, [#s[`2`] #text(orange)[*`2`*]],
-    ```asm r8```,
-    [`0x??????`*`02`* ]//#footnote[Ustawienie krótszego podrejestru nie zmienia stanu pozostałych jego bitów. Wyjątek to ustawienie 32-bitowego podrejestru (```asm mov rax, ebx```), które czyści górną połowę rejestru docelowego.]],
+    ```asm r8```, [`0x??????`*`02`* ],
+    //#footnote[Ustawienie krótszego podrejestru nie zmienia stanu pozostałych jego bitów. Wyjątek to ustawienie 32-bitowego podrejestru (```asm mov rax, ebx```), które czyści górną połowę rejestru docelowego.]],
   )
 ]
 
-#box(width: 100%, height: 100%, outset: 50%, fill:white)[
-#align(center)[
-  #v(-1cm)
-  === Funkcja wybierająca wolne pole
+#box(width: 100%, height: 100%, outset: 50%, fill: white)[
+  #align(center)[
+    #v(-1cm)
+    === Funkcja wybierająca wolne pole
 
 
-#columns(2)[
-  ```asm
+    #columns(2)[
+      ```asm
 
-  ; Bierzemy:  R8B - n
-  ; Zwracamy:  RBX - pole
-  ;            R8B = 0
-  ; Zakładamy: R10 - wskaźnik
-  ;            do wiersza
-  .znajdz_nte_puste:
-    xor rbx, rbx
-  .petla:
-    cmp byte[r10 + rbx], PUSTE
-    jne .dalej
-    test r8b, r8b
-    jz .ok ; 0? to mamy N pól
-    dec r8b
+      ; Bierzemy:  R8B - n
+      ; Zwracamy:  RBX - pole
+      ;            R8B = 0
+      ; Zakładamy: R10 - wskaźnik
+      ;            do wiersza
+      .znajdz_nte_puste:
+        xor rbx, rbx
+      .petla:
+        cmp byte[r10 + rbx], PUSTE
+        jne .dalej
+        test r8b, r8b
+        jz .ok ; 0? to mamy N pól
+        dec r8b
 
 
-  .dalej:
-    inc rbx
-    jmp .petla
-  .ok:
-    ret
-  ```
-]
-]
+      .dalej:
+        inc rbx
+        jmp .petla
+      .ok:
+        ret
+      ```
+    ]
+  ]
 ]
 ---
 #columns(2)[
   #v(1in)
-=== Kładzenie hetmana
+  === Kładzenie hetmana
 
   Funkcja dała nam znać, że 3. wolne pole jest w kolumnie numer #text(orange)[*3*].
   #colbreak()
@@ -1456,45 +1476,46 @@ szachów, dodatkowo:
   )
 ]
 ---
-#set table(
-  fill: (x, y) => {
-    if (x == 0) { none } else { (rgb("F0D9B5"), rgb("B58863")).at(calc.rem(x, 2)) }
-  },
-  row-gutter: 0pt,
-  stroke: none,
-  inset: (right: 0.25em),
-)
+#[
+  #set table(
+    fill: (x, y) => {
+      if (x == 0) { none } else { (rgb("F0D9B5"), rgb("B58863")).at(calc.rem(x, 2)) }
+    },
+    row-gutter: 0pt,
+    stroke: none,
+    inset: (right: 0.25em),
+  )
 
+  #columns(2)[
+    #v(2cm)
+    === Pozycje skoczków
+    *Wiemy*, że zostało 5 wolnych pól.
 
+    Dwa miejsca z 5 możemy zająć na $binom(5, 2) = 10$ sposobów.
 
-#columns(2)[
-#v(2cm)
-=== Pozycje skoczków
-  *Wiemy*, że zostało 5 wolnych pól.
+    Możemy jednoznacznie przenieść wynik w ```asm rax``` na pozycję skoczków.
 
-  Dwa miejsca z 5 możemy zająć na $binom(5, 2) = 10$ sposobów.
-
-  Możemy jednoznacznie przenieść wynik w ```asm rax``` na pozycję skoczków.
-
-  #colbreak()
-  #v(-0.5in)
-  #scale(y: 110%)[
-    #v(0.5in)
-    #table(
-      columns: (auto, 1fr, 1fr, 1fr, 1fr, 1fr),
-      [0], [♘], [♘], [], [], [],
-      [1], [♘], [], [♘], [], [],
-      [2], [♘], [], [], [♘], [],
-      [3], [♘], [], [], [], [♘],
-      [4], [], [♘], [♘], [], [],
-      [5], [], [♘], [], [♘], [],
-      [6], [], [♘], [], [], [♘],
-      [7], [], [], [♘], [♘], [],
-      [8], [], [], [♘], [], [♘],
-      [9], [], [], [], [♘], [♘],
-    )
+    #colbreak()
+    #v(-0.5in)
+    #scale(y: 110%)[
+      #v(0.5in)
+      #table(
+        columns: (auto, 1fr, 1fr, 1fr, 1fr, 1fr),
+        [0], [♘], [♘], [], [], [],
+        [1], [♘], [], [♘], [], [],
+        [2], [♘], [], [], [♘], [],
+        [3], [♘], [], [], [], [♘],
+        [4], [], [♘], [♘], [], [],
+        [5], [], [♘], [], [♘], [],
+        [6], [], [♘], [], [], [♘],
+        [7], [], [], [♘], [♘], [],
+        [8], [], [], [♘], [], [♘],
+        [9], [], [], [], [♘], [♘],
+      )
+    ]
   ]
 ]
+
 
 ---
 === Pozycje skoczków
@@ -1536,30 +1557,31 @@ szachów, dodatkowo:
 ]
 
 ---
-#set align(center + horizon)
-#v(1in)
-#columns(2)[
-  #v(1in)
-=== Pozycje króla i wież
-  Zostały trzy wolne pola i wiemy, że król jest na drugim z nich. Wystarczy tylko:
-  - umieścić wieżę na 1. polu,
-  - umieścić króla na 1. polu,
-  - umieścić wieżę na 1. polu.
+#[
+  #set align(center + horizon)
+  #columns(2)[
+    #v(1in)
+    === Pozycje króla i wież
+    Zostały trzy wolne pola i wiemy, że król jest na drugim z nich. Wystarczy tylko:
+    - umieścić wieżę na 1. polu,
+    - umieścić króla na 1. polu,
+    - umieścić wieżę na 1. polu.
 
-  #colbreak()
-  ```asm
-  xor r8b, r8b
-  call .znajdz_nte_puste
-  mov byte [rsp + rbx], W_ROOK
-  add bl, 0x70
-  mov byte [rel WRa], bl
+    #colbreak()
+    ```asm
+    xor r8b, r8b
+    call .znajdz_nte_puste
+    mov byte [rsp + rbx], W_ROOK
+    add bl, 0x70
+    mov byte [rel WRa], bl
 
-  call .znajdz_nte_puste
-  mov byte [rsp + rbx], W_KING
-  mov byte [rel WK], bl
-  add byte [rel WK], 0x70
-  ;powtórz dla drugiej wieży
-  ```
+    call .znajdz_nte_puste
+    mov byte [rsp + rbx], W_KING
+    mov byte [rel WK], bl
+    add byte [rel WK], 0x70
+    ;powtórz dla drugiej wieży
+    ```
+  ]
 ]
 ---
 #columns(2)[
@@ -1580,7 +1602,11 @@ szachów, dodatkowo:
 Chess960 to na razie jedyny wspierany tryb.
 
 Kiedy użytkownik wybiera "normalną" grę, silnik po prostu pomija losowość i wybiera pozycję \#518.
-
 ---
-
+#columns(2)[
+  #v(2in)
+  === Więcej o projekcie
+  #colbreak()
+  #image("img/qr.svg", width: 90%)
+]
 #title-slide()
